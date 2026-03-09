@@ -23,6 +23,18 @@ const userSchema = new mongoose.Schema(
       enum: ["user", "chef", "admin"],
       default: "user",
     },
+    reset_code: {
+      type: String,
+      default: null,
+    },
+    reset_code_expires: {
+      type: Date,
+      default: null,
+    },
+    reset_code_verified: {
+      type: Boolean,
+      default: false,
+    },
   },
   { timestamps: true }
 );

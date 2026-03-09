@@ -105,7 +105,7 @@ class _LoginScreenState extends State<LoginScreen>
         email: email,
         password: pass,
       );
-      
+
       if (!mounted) return;
 
       if (result['userId'] == null) {
@@ -315,62 +315,6 @@ class _LoginScreenState extends State<LoginScreen>
                                       color: Colors.white,
                                     ),
                                   ),
-                          ),
-                        ),
-                        const SizedBox(height: 18),
-                        Row(
-                          children: [
-                            Expanded(
-                              child: Divider(
-                                color: AppColors.blueGray.withOpacity(0.35),
-                              ),
-                            ),
-                            const Padding(
-                              padding: EdgeInsets.symmetric(horizontal: 10),
-                              child: Text(
-                                "OR",
-                                style: TextStyle(
-                                  fontWeight: FontWeight.w900,
-                                  color: AppColors.blueGray,
-                                ),
-                              ),
-                            ),
-                            Expanded(
-                              child: Divider(
-                                color: AppColors.blueGray.withOpacity(0.35),
-                              ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 18),
-                        SizedBox(
-                          width: double.infinity,
-                          height: 52,
-                          child: OutlinedButton.icon(
-                            onPressed: () {},
-                            style: OutlinedButton.styleFrom(
-                              foregroundColor: AppColors.navy,
-                              side: BorderSide(
-                                color: AppColors.navy.withOpacity(0.35),
-                                width: 1.3,
-                              ),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(16),
-                              ),
-                              backgroundColor:
-                                  AppColors.white.withOpacity(0.45),
-                            ),
-                            icon: const Icon(
-                              Icons.g_mobiledata_rounded,
-                              size: 30,
-                            ),
-                            label: const Text(
-                              "Continue with Google",
-                              style: TextStyle(
-                                fontSize: 15,
-                                fontWeight: FontWeight.w900,
-                              ),
-                            ),
                           ),
                         ),
                       ],

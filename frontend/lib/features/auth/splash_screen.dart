@@ -45,7 +45,6 @@ class _SplashScreenState extends State<SplashScreen>
 
     _controller.forward();
 
-    /// الانتقال بعد 2 ثانية
     Timer(const Duration(seconds: 5), () {
 
       Navigator.pushReplacement(

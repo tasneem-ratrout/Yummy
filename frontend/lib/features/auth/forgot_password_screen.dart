@@ -3,6 +3,7 @@ import '../../../core/theme/app_colors.dart';
 import '../../../shared/app_background.dart';
 import '../../../shared/glass_text_field.dart';
 import '../../../shared/back_button_widget.dart';
+import '../../../core/services/auth_service.dart';
 import 'login_screen.dart';
 
 class ForgotPasswordScreen extends StatefulWidget {
@@ -21,6 +22,8 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
     4,
     (_) => TextEditingController(),
   );
+
+  final AuthService _authService = AuthService();
 
   bool _loading = false;
   bool _obscureNew = true;
@@ -71,14 +74,27 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
       _errorMessage = null;
     });
 
-    await Future.delayed(const Duration(milliseconds: 900));
+    try {
+      final result = await _authService.sendResetCode(email: email);
 
-    if (!mounted) return;
+      if (!mounted) return;
 
-    setState(() {
-      _loading = false;
-      _step = 1;
-    });
+      if (result['message'] != "Verification code sent successfully") {
+        _showError(result['message'] ?? "Failed to send code");
+        return;
+      }
+
+      setState(() {
+        _loading = false;
+        _step = 1;
+      });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Code sent successfully ✅")),
+      );
+    } catch (e) {
+      _showError("Something went wrong");
+    }
   }
 
   Future<void> _verifyCode() async {
@@ -87,25 +103,31 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
       return;
     }
 
-    /// مثال: الكود الصحيح في الديمو
-    if (_enteredCode != "1234") {
-      _showError("Invalid verification code");
-      return;
-    }
-
     setState(() {
       _loading = true;
       _errorMessage = null;
     });
 
-    await Future.delayed(const Duration(milliseconds: 900));
+    try {
+      final result = await _authService.verifyResetCode(
+        email: _emailCtrl.text.trim(),
+        code: _enteredCode,
+      );
 
-    if (!mounted) return;
+      if (!mounted) return;
 
-    setState(() {
-      _loading = false;
-      _step = 2;
-    });
+      if (result['message'] != "Code verified successfully") {
+        _showError(result['message'] ?? "Invalid verification code");
+        return;
+      }
+
+      setState(() {
+        _loading = false;
+        _step = 2;
+      });
+    } catch (e) {
+      _showError("Something went wrong");
+    }
   }
 
   Future<void> _resetPassword() async {
@@ -137,21 +159,58 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
       _errorMessage = null;
     });
 
-    await Future.delayed(const Duration(milliseconds: 900));
+    try {
+      final result = await _authService.resetPassword(
+        email: _emailCtrl.text.trim(),
+        newPassword: pass,
+      );
 
-    if (!mounted) return;
+      if (!mounted) return;
 
-    setState(() => _loading = false);
+      if (result['message'] != "Password reset successfully") {
+        _showError(result['message'] ?? "Failed to reset password");
+        return;
+      }
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text("Password reset successfully ✅")),
-    );
+      setState(() => _loading = false);
 
-    Navigator.pushAndRemoveUntil(
-      context,
-      MaterialPageRoute(builder: (_) => const LoginScreen()),
-      (route) => false,
-    );
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Password reset successfully ✅")),
+      );
+
+      Navigator.pushAndRemoveUntil(
+        context,
+        MaterialPageRoute(builder: (_) => const LoginScreen()),
+        (route) => false,
+      );
+    } catch (e) {
+      _showError("Something went wrong");
+    }
+  }
+
+  Future<void> _resendCode() async {
+    try {
+      final result = await _authService.sendResetCode(
+        email: _emailCtrl.text.trim(),
+      );
+
+      if (!mounted) return;
+
+      if (result['message'] != "Verification code sent successfully") {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(result['message'] ?? "Failed to resend code")),
+        );
+        return;
+      }
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Code resent ✅")),
+      );
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Something went wrong")),
+      );
+    }
   }
 
   String _title() {
@@ -183,7 +242,6 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 SizedBox(height: h * 0.03),
-
                 Row(
                   children: [
                     AppBackButton(
@@ -201,9 +259,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                     ),
                   ],
                 ),
-
                 const SizedBox(height: 18),
-
                 Text(
                   _title(),
                   textAlign: TextAlign.center,
@@ -213,9 +269,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                     color: AppColors.darkBlue,
                   ),
                 ),
-
                 const SizedBox(height: 8),
-
                 Text(
                   _subtitle(),
                   textAlign: TextAlign.center,
@@ -226,9 +280,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                     color: AppColors.dark.withOpacity(0.60),
                   ),
                 ),
-
                 const SizedBox(height: 22),
-
                 if (_errorMessage != null)
                   Container(
                     margin: const EdgeInsets.only(bottom: 14),
@@ -262,7 +314,6 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                       ],
                     ),
                   ),
-
                 AnimatedSwitcher(
                   duration: const Duration(milliseconds: 300),
                   child: _step == 0
@@ -271,27 +322,27 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                           emailCtrl: _emailCtrl,
                         )
                       : _step == 1
-                      ? _CodeStep(
-                          key: const ValueKey("code"),
-                          codeCtrls: _codeCtrls,
-                        )
-                      : _ResetStep(
-                          key: const ValueKey("reset"),
-                          newPassCtrl: _newPassCtrl,
-                          confirmPassCtrl: _confirmPassCtrl,
-                          obscureNew: _obscureNew,
-                          obscureConfirm: _obscureConfirm,
-                          onToggleNew: () {
-                            setState(() => _obscureNew = !_obscureNew);
-                          },
-                          onToggleConfirm: () {
-                            setState(() => _obscureConfirm = !_obscureConfirm);
-                          },
-                        ),
+                          ? _CodeStep(
+                              key: const ValueKey("code"),
+                              codeCtrls: _codeCtrls,
+                            )
+                          : _ResetStep(
+                              key: const ValueKey("reset"),
+                              newPassCtrl: _newPassCtrl,
+                              confirmPassCtrl: _confirmPassCtrl,
+                              obscureNew: _obscureNew,
+                              obscureConfirm: _obscureConfirm,
+                              onToggleNew: () {
+                                setState(() => _obscureNew = !_obscureNew);
+                              },
+                              onToggleConfirm: () {
+                                setState(
+                                  () => _obscureConfirm = !_obscureConfirm,
+                                );
+                              },
+                            ),
                 ),
-
                 const SizedBox(height: 16),
-
                 SizedBox(
                   width: double.infinity,
                   height: 52,
@@ -299,10 +350,10 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                     onPressed: _loading
                         ? null
                         : _step == 0
-                        ? _sendCode
-                        : _step == 1
-                        ? _verifyCode
-                        : _resetPassword,
+                            ? _sendCode
+                            : _step == 1
+                                ? _verifyCode
+                                : _resetPassword,
                     style: ElevatedButton.styleFrom(
                       backgroundColor: AppColors.navy,
                       disabledBackgroundColor: AppColors.navy,
@@ -327,8 +378,8 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                             _step == 0
                                 ? "Send Code"
                                 : _step == 1
-                                ? "Verify"
-                                : "Reset Password",
+                                    ? "Verify"
+                                    : "Reset Password",
                             style: const TextStyle(
                               fontSize: 15,
                               fontWeight: FontWeight.w900,
@@ -337,19 +388,10 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                           ),
                   ),
                 ),
-
                 const SizedBox(height: 12),
-
                 if (_step == 1)
                   TextButton(
-                    onPressed: () {
-                      setState(() {
-                        _errorMessage = null;
-                      });
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text("Code resent ✅")),
-                      );
-                    },
+                    onPressed: _resendCode,
                     child: Text(
                       "Resend Code",
                       style: TextStyle(
@@ -358,7 +400,6 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                       ),
                     ),
                   ),
-
                 if (_step == 0)
                   TextButton(
                     onPressed: () => Navigator.pop(context),
@@ -370,7 +411,6 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                       ),
                     ),
                   ),
-
                 const SizedBox(height: 200),
               ],
             ),
@@ -453,9 +493,8 @@ class _CodeStepState extends State<_CodeStep> {
             focusNode: _focusNodes[index],
             textAlign: TextAlign.center,
             keyboardType: TextInputType.number,
-            textInputAction: index == 3
-                ? TextInputAction.done
-                : TextInputAction.next,
+            textInputAction:
+                index == 3 ? TextInputAction.done : TextInputAction.next,
             maxLength: 1,
             style: const TextStyle(
               fontSize: 24,

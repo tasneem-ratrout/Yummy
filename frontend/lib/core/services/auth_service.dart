@@ -89,41 +89,87 @@ class AuthService {
   }
 
   Future<Map<String, dynamic>> saveProfile({
-  required String name,
-  required String goal,
-  required String gender,
-  required String dateOfBirth,
-  required int heightValue,
-  required String heightUnit,
-  required double weightValue,
-  required String weightUnit,
-  required String activityLevel,
-  required List<String> allergies,
-  required List<String> medicalConditions,
-}) async {
-  final token = await getToken();
+    required String name,
+    required String goal,
+    required String gender,
+    required String dateOfBirth,
+    required int heightValue,
+    required String heightUnit,
+    required double weightValue,
+    required String weightUnit,
+    required String activityLevel,
+    required List<String> allergies,
+    required List<String> medicalConditions,
+  }) async {
+    final token = await getToken();
 
-  final response = await http.post(
-    Uri.parse('$baseUrl/user-profile'),
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': 'Bearer $token',
-    },
-    body: jsonEncode({
-      'name': name,
-      'goal': goal,
-      'gender': gender,
-      'date_of_birth': dateOfBirth,
-      'height_value': heightValue,
-      'height_unit': heightUnit,
-      'weight_value': weightValue,
-      'weight_unit': weightUnit,
-      'activity_level': activityLevel,
-      'allergies': allergies,
-      'medical_conditions': medicalConditions,
-    }),
-  );
+    final response = await http.post(
+      Uri.parse('$baseUrl/user-profile'),
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer $token',
+      },
+      body: jsonEncode({
+        'name': name,
+        'goal': goal,
+        'gender': gender,
+        'date_of_birth': dateOfBirth,
+        'height_value': heightValue,
+        'height_unit': heightUnit,
+        'weight_value': weightValue,
+        'weight_unit': weightUnit,
+        'activity_level': activityLevel,
+        'allergies': allergies,
+        'medical_conditions': medicalConditions,
+      }),
+    );
 
-  return jsonDecode(response.body);
-}
+    return jsonDecode(response.body);
+  }
+
+  Future<Map<String, dynamic>> sendResetCode({
+    required String email,
+  }) async {
+    final response = await http.post(
+      Uri.parse('$baseUrl/auth/forgot-password/send-code'),
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode({
+        'email': email,
+      }),
+    );
+
+    return jsonDecode(response.body);
+  }
+
+  Future<Map<String, dynamic>> verifyResetCode({
+    required String email,
+    required String code,
+  }) async {
+    final response = await http.post(
+      Uri.parse('$baseUrl/auth/forgot-password/verify-code'),
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode({
+        'email': email,
+        'code': code,
+      }),
+    );
+
+    return jsonDecode(response.body);
+  }
+
+  Future<Map<String, dynamic>> resetPassword({
+    required String email,
+    required String newPassword,
+  }) async {
+    final response = await http.post(
+      Uri.parse('$baseUrl/auth/forgot-password/reset'),
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode({
+        'email': email,
+        'newPassword': newPassword,
+      }),
+    );
+
+    return jsonDecode(response.body);
+  }
 }
