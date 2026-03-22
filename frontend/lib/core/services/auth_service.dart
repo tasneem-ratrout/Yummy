@@ -5,46 +5,96 @@ import '../config/app_config.dart';
 
 class AuthService {
   static const String baseUrl = AppConfig.baseUrl;
+  static const Duration timeoutDuration = Duration(seconds: 30);
+
+  /// Parse JSON response safely with error handling
+  static Map<String, dynamic> _parseResponse(String body) {
+    try {
+      return jsonDecode(body) as Map<String, dynamic>;
+    } catch (e) {
+      print('⚠️ JSON Parse Error: $e');
+      print('📄 Response body: $body');
+      return {'message': 'Invalid server response', 'error': true};
+    }
+  }
+
+  /// Build authorization headers
+  static Future<Map<String, String>> _buildHeaders({String? token}) async {
+    final headers = {'Content-Type': 'application/json'};
+
+    if (token != null) {
+      headers['Authorization'] = 'Bearer $token';
+    }
+
+    return headers;
+  }
+
+  /// Handle HTTP errors
+  static Map<String, dynamic> _handleError(dynamic error) {
+    return {
+      'message': 'Network error. Please check your connection.',
+      'error': true,
+      'details': error.toString(),
+    };
+  }
 
   Future<Map<String, dynamic>> register({
     required String email,
     required String password,
   }) async {
-    final response = await http.post(
-      Uri.parse('$baseUrl/auth/register'),
-      headers: {'Content-Type': 'application/json'},
-      body: jsonEncode({
-        'email': email,
-        'password': password,
-        'role': 'user',
-      }),
-    );
+    try {
+      final response = await http
+          .post(
+            Uri.parse('$baseUrl/auth/register'),
+            headers: await _buildHeaders(),
+            body: jsonEncode({
+              'email': email,
+              'password': password,
+              'role': 'user',
+            }),
+          )
+          .timeout(timeoutDuration);
 
-    return jsonDecode(response.body);
+      final data = _parseResponse(response.body);
+
+      if ((response.statusCode == 200 || response.statusCode == 201) &&
+          data['token'] != null) {
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.setString('token', data['token']);
+        await prefs.setString('userId', data['userId'].toString());
+      }
+
+      return data;
+    } catch (e) {
+      return _handleError(e);
+    }
   }
 
   Future<Map<String, dynamic>> login({
     required String email,
     required String password,
   }) async {
-    final response = await http.post(
-      Uri.parse('$baseUrl/auth/login'),
-      headers: {'Content-Type': 'application/json'},
-      body: jsonEncode({
-        'email': email,
-        'password': password,
-      }),
-    );
+    try {
+      final response = await http
+          .post(
+            Uri.parse('$baseUrl/auth/login'),
+            headers: await _buildHeaders(),
+            body: jsonEncode({'email': email, 'password': password}),
+          )
+          .timeout(timeoutDuration);
 
-    final data = jsonDecode(response.body);
+      final data = _parseResponse(response.body);
 
-    if (response.statusCode == 200 && data['token'] != null) {
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.setString('token', data['token']);
-      await prefs.setString('userId', data['userId'].toString());
+      if (response.statusCode == 200 && data['token'] != null) {
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.setString('token', data['token']);
+        await prefs.setString('userId', data['userId'].toString());
+      }
+
+      return data;
+    } catch (e) {
+      return _handleError(e);
     }
-
-    return data;
   }
 
   Future<String?> getToken() async {
@@ -59,33 +109,46 @@ class AuthService {
   }
 
   Future<Map<String, dynamic>> getMe() async {
-    final token = await getToken();
+    try {
+      final token = await getToken();
 
-    final response = await http.get(
-      Uri.parse('$baseUrl/auth/me'),
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': 'Bearer $token',
-      },
-    );
+      if (token == null) {
+        return {'message': 'No authentication token found', 'error': true};
+      }
 
-    return jsonDecode(response.body);
+      final response = await http
+          .get(
+            Uri.parse('$baseUrl/auth/me'),
+            headers: await _buildHeaders(token: token),
+          )
+          .timeout(timeoutDuration);
+
+      return _parseResponse(response.body);
+    } catch (e) {
+      return _handleError(e);
+    }
   }
 
-  Future<Map<String, dynamic>> updateUserName({
-    required String userId,
-    required String name,
-  }) async {
-    final response = await http.patch(
-      Uri.parse('$baseUrl/auth/update-name'),
-      headers: {'Content-Type': 'application/json'},
-      body: jsonEncode({
-        'userId': userId,
-        'name': name,
-      }),
-    );
+  Future<Map<String, dynamic>> updateUserName({required String name}) async {
+    try {
+      final token = await getToken();
 
-    return jsonDecode(response.body);
+      if (token == null) {
+        return {'message': 'No authentication token found', 'error': true};
+      }
+
+      final response = await http
+          .patch(
+            Uri.parse('$baseUrl/auth/update-name'),
+            headers: await _buildHeaders(token: token),
+            body: jsonEncode({'name': name}),
+          )
+          .timeout(timeoutDuration);
+
+      return _parseResponse(response.body);
+    } catch (e) {
+      return _handleError(e);
+    }
   }
 
   Future<Map<String, dynamic>> saveProfile({
@@ -101,75 +164,118 @@ class AuthService {
     required List<String> allergies,
     required List<String> medicalConditions,
   }) async {
-    final token = await getToken();
+    try {
+      final token = await getToken();
 
-    final response = await http.post(
-      Uri.parse('$baseUrl/user-profile'),
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': 'Bearer $token',
-      },
-      body: jsonEncode({
-        'name': name,
-        'goal': goal,
-        'gender': gender,
-        'date_of_birth': dateOfBirth,
-        'height_value': heightValue,
-        'height_unit': heightUnit,
-        'weight_value': weightValue,
-        'weight_unit': weightUnit,
-        'activity_level': activityLevel,
-        'allergies': allergies,
-        'medical_conditions': medicalConditions,
-      }),
-    );
+      if (token == null) {
+        return {'message': 'No authentication token found', 'error': true};
+      }
 
-    return jsonDecode(response.body);
+      final response = await http
+          .post(
+            Uri.parse('$baseUrl/user-profile'),
+            headers: await _buildHeaders(token: token),
+            body: jsonEncode({
+              'name': name,
+              'goal': goal,
+              'gender': gender,
+              'date_of_birth': dateOfBirth,
+              'height_value': heightValue,
+              'height_unit': heightUnit,
+              'weight_value': weightValue,
+              'weight_unit': weightUnit,
+              'activity_level': activityLevel,
+              'allergies': allergies,
+              'medical_conditions': medicalConditions,
+            }),
+          )
+          .timeout(timeoutDuration);
+
+      return _parseResponse(response.body);
+    } catch (e) {
+      return _handleError(e);
+    }
   }
 
-  Future<Map<String, dynamic>> sendResetCode({
-    required String email,
-  }) async {
-    final response = await http.post(
-      Uri.parse('$baseUrl/auth/forgot-password/send-code'),
-      headers: {'Content-Type': 'application/json'},
-      body: jsonEncode({
-        'email': email,
-      }),
-    );
+  Future<Map<String, dynamic>> sendResetCode({required String email}) async {
+    try {
+      print('📤 Sending reset code to: $email');
+      print('🔗 URL: $baseUrl/auth/forgot-password/send-code');
 
-    return jsonDecode(response.body);
+      final response = await http
+          .post(
+            Uri.parse('$baseUrl/auth/forgot-password/send-code'),
+            headers: await _buildHeaders(),
+            body: jsonEncode({'email': email}),
+          )
+          .timeout(timeoutDuration);
+
+      print('📥 Status Code: ${response.statusCode}');
+      print('📥 Response Headers: ${response.headers}');
+      print('📥 Response Body: ${response.body}');
+
+      final data = _parseResponse(response.body);
+      data['statusCode'] = response.statusCode;
+      return data;
+    } catch (e) {
+      print('❌ Error in sendResetCode: $e');
+      return _handleError(e);
+    }
   }
 
   Future<Map<String, dynamic>> verifyResetCode({
     required String email,
     required String code,
   }) async {
-    final response = await http.post(
-      Uri.parse('$baseUrl/auth/forgot-password/verify-code'),
-      headers: {'Content-Type': 'application/json'},
-      body: jsonEncode({
-        'email': email,
-        'code': code,
-      }),
-    );
+    try {
+      print('📤 Verifying reset code for: $email');
+      print('🔗 URL: $baseUrl/auth/forgot-password/verify-code');
 
-    return jsonDecode(response.body);
+      final response = await http
+          .post(
+            Uri.parse('$baseUrl/auth/forgot-password/verify-code'),
+            headers: await _buildHeaders(),
+            body: jsonEncode({'email': email, 'code': code}),
+          )
+          .timeout(timeoutDuration);
+
+      print('📥 Status Code: ${response.statusCode}');
+      print('📥 Response Body: ${response.body}');
+
+      final data = _parseResponse(response.body);
+      data['statusCode'] = response.statusCode;
+      return data;
+    } catch (e) {
+      print('❌ Error in verifyResetCode: $e');
+      return _handleError(e);
+    }
   }
 
   Future<Map<String, dynamic>> resetPassword({
     required String email,
     required String newPassword,
   }) async {
-    final response = await http.post(
-      Uri.parse('$baseUrl/auth/forgot-password/reset'),
-      headers: {'Content-Type': 'application/json'},
-      body: jsonEncode({
-        'email': email,
-        'newPassword': newPassword,
-      }),
-    );
+    try {
+      print('📤 Resetting password for: $email');
+      print('🔗 URL: $baseUrl/auth/forgot-password/reset');
 
-    return jsonDecode(response.body);
+      final response = await http
+          .post(
+            Uri.parse('$baseUrl/auth/forgot-password/reset'),
+            headers: await _buildHeaders(),
+            body: jsonEncode({'email': email, 'newPassword': newPassword}),
+          )
+          .timeout(timeoutDuration);
+
+      print('📥 Status Code: ${response.statusCode}');
+      print('📥 Response Body: ${response.body}');
+
+      final data = _parseResponse(response.body);
+      data['statusCode'] = response.statusCode;
+      return data;
+    } catch (e) {
+      print('❌ Error in resetPassword: $e');
+      return _handleError(e);
+    }
   }
 }

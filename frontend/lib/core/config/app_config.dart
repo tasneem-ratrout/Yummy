@@ -1,3 +1,27 @@
+// يجب تشغيل الـ app مع --dart-define
+// أمثلة:
+// flutter run --dart-define=BASE_URL=http://192.168.1.14:5000/api
+// flutter run --dart-define=BASE_URL=https://api.yummy.com/api
+
+// Default للـ development environment (جهازك الفعلي)
+const String _defaultBaseUrl = 'http://192.168.1.14:5000/api';
+
 class AppConfig {
-  static const String baseUrl = 'http://192.168.1.11:5000/api';
+  // استخدم BASE_URL من environment variables، وإلا استخدم default URL
+  static const String baseUrl = String.fromEnvironment(
+    'BASE_URL',
+    defaultValue: _defaultBaseUrl,
+  );
+
+  // التحقق من أن الـ URL صحيح
+  static bool isProductionUrl() {
+    return baseUrl.startsWith('https://');
+  }
+
+  // Configuration للـ timeouts
+  static const Duration requestTimeout = Duration(seconds: 30);
+
+  // Configuration للـ retry logic
+  static const int maxRetries = 3;
+  static const Duration retryDelay = Duration(seconds: 1);
 }

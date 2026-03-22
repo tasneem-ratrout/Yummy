@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'dart:async';
+import 'package:flutter/services.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../shared/app_background.dart';
 import '../../../shared/glass_text_field.dart';
@@ -36,11 +38,15 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
   // 1 = verify code
   // 2 = reset password
 
+  Timer? _resendTimer;
+  int _resendCountdown = 0;
+
   @override
   void dispose() {
     _emailCtrl.dispose();
     _newPassCtrl.dispose();
     _confirmPassCtrl.dispose();
+    _resendTimer?.cancel();
     for (final c in _codeCtrls) {
       c.dispose();
     }
@@ -56,6 +62,32 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
     });
   }
 
+  void _startResendTimer() {
+    _resendTimer?.cancel();
+    setState(() => _resendCountdown = 30);
+
+    _resendTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      setState(() {
+        if (_resendCountdown > 0) {
+          _resendCountdown--;
+        } else {
+          timer.cancel();
+        }
+      });
+    });
+  }
+
+  void _showSuccessDialog() {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      barrierColor: Colors.black.withOpacity(0.4),
+      builder: (context) {
+        return _SuccessDialog();
+      },
+    );
+  }
+
   Future<void> _sendCode() async {
     final email = _emailCtrl.text.trim();
 
@@ -64,8 +96,10 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
       return;
     }
 
-    if (!email.contains("@") || !email.contains(".")) {
-      _showError("Please enter a valid email");
+    // Proper email validation using regex
+    final emailRegex = RegExp(r'^[^\s@]+@[^\s@]+\.[^\s@]+$');
+    if (!emailRegex.hasMatch(email)) {
+      _showError("Please enter a valid email address");
       return;
     }
 
@@ -79,7 +113,14 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
 
       if (!mounted) return;
 
-      if (result['message'] != "Verification code sent successfully") {
+      final statusCode = result['statusCode'] as int?;
+
+      if (statusCode == 404) {
+        _showError("Email not found");
+        return;
+      }
+
+      if (statusCode != 200) {
         _showError(result['message'] ?? "Failed to send code");
         return;
       }
@@ -89,9 +130,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
         _step = 1;
       });
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Code sent successfully ✅")),
-      );
+      _startResendTimer();
     } catch (e) {
       _showError("Something went wrong");
     }
@@ -116,7 +155,9 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
 
       if (!mounted) return;
 
-      if (result['message'] != "Code verified successfully") {
+      final statusCode = result['statusCode'] as int?;
+
+      if (statusCode != 200) {
         _showError(result['message'] ?? "Invalid verification code");
         return;
       }
@@ -139,8 +180,8 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
       return;
     }
 
-    if (pass.length < 6) {
-      _showError("Password must be at least 6 characters");
+    if (pass.length < 8) {
+      _showError("Password must be at least 8 characters");
       return;
     }
 
@@ -167,22 +208,16 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
 
       if (!mounted) return;
 
-      if (result['message'] != "Password reset successfully") {
+      final statusCode = result['statusCode'] as int?;
+
+      if (statusCode != 200) {
         _showError(result['message'] ?? "Failed to reset password");
         return;
       }
 
       setState(() => _loading = false);
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Password reset successfully ✅")),
-      );
-
-      Navigator.pushAndRemoveUntil(
-        context,
-        MaterialPageRoute(builder: (_) => const LoginScreen()),
-        (route) => false,
-      );
+      _showSuccessDialog();
     } catch (e) {
       _showError("Something went wrong");
     }
@@ -196,20 +231,27 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
 
       if (!mounted) return;
 
-      if (result['message'] != "Verification code sent successfully") {
+      final statusCode = result['statusCode'] as int?;
+
+      if (statusCode == 404) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text("Email not found")));
+        return;
+      }
+
+      if (statusCode != 200) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text(result['message'] ?? "Failed to resend code")),
         );
         return;
       }
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Code resent ✅")),
-      );
+      _startResendTimer();
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Something went wrong")),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text("Something went wrong")));
     }
   }
 
@@ -322,25 +364,24 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                           emailCtrl: _emailCtrl,
                         )
                       : _step == 1
-                          ? _CodeStep(
-                              key: const ValueKey("code"),
-                              codeCtrls: _codeCtrls,
-                            )
-                          : _ResetStep(
-                              key: const ValueKey("reset"),
-                              newPassCtrl: _newPassCtrl,
-                              confirmPassCtrl: _confirmPassCtrl,
-                              obscureNew: _obscureNew,
-                              obscureConfirm: _obscureConfirm,
-                              onToggleNew: () {
-                                setState(() => _obscureNew = !_obscureNew);
-                              },
-                              onToggleConfirm: () {
-                                setState(
-                                  () => _obscureConfirm = !_obscureConfirm,
-                                );
-                              },
-                            ),
+                      ? _CodeStep(
+                          key: const ValueKey("code"),
+                          codeCtrls: _codeCtrls,
+                          onCodeCompleted: _verifyCode,
+                        )
+                      : _ResetStep(
+                          key: const ValueKey("reset"),
+                          newPassCtrl: _newPassCtrl,
+                          confirmPassCtrl: _confirmPassCtrl,
+                          obscureNew: _obscureNew,
+                          obscureConfirm: _obscureConfirm,
+                          onToggleNew: () {
+                            setState(() => _obscureNew = !_obscureNew);
+                          },
+                          onToggleConfirm: () {
+                            setState(() => _obscureConfirm = !_obscureConfirm);
+                          },
+                        ),
                 ),
                 const SizedBox(height: 16),
                 SizedBox(
@@ -350,10 +391,10 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                     onPressed: _loading
                         ? null
                         : _step == 0
-                            ? _sendCode
-                            : _step == 1
-                                ? _verifyCode
-                                : _resetPassword,
+                        ? _sendCode
+                        : _step == 1
+                        ? _verifyCode
+                        : _resetPassword,
                     style: ElevatedButton.styleFrom(
                       backgroundColor: AppColors.navy,
                       disabledBackgroundColor: AppColors.navy,
@@ -378,8 +419,8 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                             _step == 0
                                 ? "Send Code"
                                 : _step == 1
-                                    ? "Verify"
-                                    : "Reset Password",
+                                ? "Verify"
+                                : "Reset Password",
                             style: const TextStyle(
                               fontSize: 15,
                               fontWeight: FontWeight.w900,
@@ -390,16 +431,28 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                 ),
                 const SizedBox(height: 12),
                 if (_step == 1)
-                  TextButton(
-                    onPressed: _resendCode,
-                    child: Text(
-                      "Resend Code",
-                      style: TextStyle(
-                        color: AppColors.navy,
-                        fontWeight: FontWeight.w900,
-                      ),
-                    ),
-                  ),
+                  _resendCountdown > 0
+                      ? Container(
+                          padding: const EdgeInsets.symmetric(vertical: 12),
+                          child: Text(
+                            "Resend code in $_resendCountdown seconds",
+                            style: TextStyle(
+                              color: AppColors.navy.withOpacity(0.6),
+                              fontWeight: FontWeight.w700,
+                              fontSize: 14,
+                            ),
+                          ),
+                        )
+                      : TextButton(
+                          onPressed: _resendCode,
+                          child: Text(
+                            "Resend Code",
+                            style: TextStyle(
+                              color: AppColors.navy,
+                              fontWeight: FontWeight.w900,
+                            ),
+                          ),
+                        ),
                 if (_step == 0)
                   TextButton(
                     onPressed: () => Navigator.pop(context),
@@ -441,8 +494,13 @@ class _EmailStep extends StatelessWidget {
 
 class _CodeStep extends StatefulWidget {
   final List<TextEditingController> codeCtrls;
+  final Future<void> Function() onCodeCompleted;
 
-  const _CodeStep({super.key, required this.codeCtrls});
+  const _CodeStep({
+    super.key,
+    required this.codeCtrls,
+    required this.onCodeCompleted,
+  });
 
   @override
   State<_CodeStep> createState() => _CodeStepState();
@@ -450,6 +508,7 @@ class _CodeStep extends StatefulWidget {
 
 class _CodeStepState extends State<_CodeStep> {
   late final List<FocusNode> _focusNodes;
+  bool _hasTriggeredCompletion = false;
 
   @override
   void initState() {
@@ -472,53 +531,95 @@ class _CodeStepState extends State<_CodeStep> {
       } else {
         FocusScope.of(context).unfocus();
       }
-    } else {
-      if (index > 0) {
-        FocusScope.of(context).requestFocus(_focusNodes[index - 1]);
-      }
+    } else if (index > 0) {
+      FocusScope.of(context).requestFocus(_focusNodes[index - 1]);
     }
+
+    final isCodeComplete = widget.codeCtrls.every(
+      (controller) => controller.text.trim().length == 1,
+    );
+
+    if (!isCodeComplete) {
+      _hasTriggeredCompletion = false;
+      return;
+    }
+
+    if (_hasTriggeredCompletion) return;
+
+    _hasTriggeredCompletion = true;
+    widget.onCodeCompleted();
   }
 
   @override
   Widget build(BuildContext context) {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      children: List.generate(
-        4,
-        (index) => SizedBox(
-          width: 68,
-          height: 72,
-          child: TextField(
-            controller: widget.codeCtrls[index],
-            focusNode: _focusNodes[index],
-            textAlign: TextAlign.center,
-            keyboardType: TextInputType.number,
-            textInputAction:
-                index == 3 ? TextInputAction.done : TextInputAction.next,
-            maxLength: 1,
-            style: const TextStyle(
-              fontSize: 24,
-              fontWeight: FontWeight.w800,
-              color: AppColors.darkBlue,
-            ),
-            onChanged: (value) => _onChanged(value, index),
-            decoration: InputDecoration(
-              counterText: "",
-              filled: true,
-              fillColor: AppColors.white.withOpacity(0.88),
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(18),
-                borderSide: BorderSide(color: AppColors.dark.withOpacity(0.06)),
-              ),
-              enabledBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(18),
-                borderSide: BorderSide(color: AppColors.dark.withOpacity(0.06)),
-              ),
-              focusedBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(18),
-                borderSide: const BorderSide(
-                  color: AppColors.mediumBlue,
-                  width: 1.5,
+    return Padding(
+      padding: const EdgeInsets.only(top: 40),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: List.generate(
+          4,
+          (index) => Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 6),
+            child: SizedBox(
+              width: 65,
+              height: 80,
+              child: Focus(
+                onKeyEvent: (node, event) {
+                  if (event is KeyDownEvent &&
+                      event.logicalKey == LogicalKeyboardKey.backspace &&
+                      widget.codeCtrls[index].text.isEmpty &&
+                      index > 0) {
+                    widget.codeCtrls[index - 1].clear();
+                    _hasTriggeredCompletion = false;
+                    FocusScope.of(context).requestFocus(_focusNodes[index - 1]);
+                    return KeyEventResult.handled;
+                  }
+                  return KeyEventResult.ignored;
+                },
+                child: TextField(
+                  controller: widget.codeCtrls[index],
+                  focusNode: _focusNodes[index],
+                  textAlign: TextAlign.center,
+                  keyboardType: TextInputType.number,
+                  textInputAction: index == 3
+                      ? TextInputAction.done
+                      : TextInputAction.next,
+                  maxLength: 1,
+                  style: const TextStyle(
+                    fontSize: 34,
+                    fontWeight: FontWeight.w900,
+                    color: AppColors.darkBlue,
+                  ),
+                  onChanged: (value) => _onChanged(value, index),
+                  decoration: InputDecoration(
+                    counterText: "",
+                    filled: true,
+                    fillColor: AppColors.white.withOpacity(0.95),
+
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(22),
+                      borderSide: BorderSide(
+                        color: AppColors.mediumBlue.withOpacity(0.2),
+                        width: 2,
+                      ),
+                    ),
+
+                    enabledBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(22),
+                      borderSide: BorderSide(
+                        color: AppColors.mediumBlue.withOpacity(0.25),
+                        width: 2,
+                      ),
+                    ),
+
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(22),
+                      borderSide: const BorderSide(
+                        color: AppColors.mediumBlue,
+                        width: 3,
+                      ),
+                    ),
+                  ),
                 ),
               ),
             ),
@@ -586,6 +687,195 @@ class _ResetStep extends StatelessWidget {
           validator: (_) => null,
         ),
       ],
+    );
+  }
+}
+
+class _SuccessDialog extends StatefulWidget {
+  const _SuccessDialog();
+
+  @override
+  State<_SuccessDialog> createState() => _SuccessDialogState();
+}
+
+class _SuccessDialogState extends State<_SuccessDialog>
+    with TickerProviderStateMixin {
+  late AnimationController _scaleController;
+  late AnimationController _rotateController;
+  late Animation<double> _scaleAnimation;
+  late Animation<double> _rotateAnimation;
+  late Animation<Offset> _slideAnimation;
+
+  @override
+  void initState() {
+    super.initState();
+
+    _scaleController = AnimationController(
+      duration: const Duration(milliseconds: 600),
+      vsync: this,
+    );
+
+    _rotateController = AnimationController(
+      duration: const Duration(milliseconds: 800),
+      vsync: this,
+    );
+
+    _scaleAnimation = Tween<double>(begin: 0, end: 1).animate(
+      CurvedAnimation(parent: _scaleController, curve: Curves.elasticOut),
+    );
+
+    _rotateAnimation = Tween<double>(begin: -0.5, end: 0).animate(
+      CurvedAnimation(parent: _rotateController, curve: Curves.elasticOut),
+    );
+
+    _slideAnimation =
+        Tween<Offset>(begin: const Offset(0, -0.4), end: Offset.zero).animate(
+          CurvedAnimation(parent: _scaleController, curve: Curves.easeOutCubic),
+        );
+
+    Future.microtask(() {
+      _scaleController.forward();
+      _rotateController.forward();
+    });
+  }
+
+  @override
+  void dispose() {
+    _scaleController.dispose();
+    _rotateController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Dialog(
+      backgroundColor: Colors.transparent,
+      elevation: 0,
+      insetPadding: const EdgeInsets.symmetric(horizontal: 36),
+      child: SlideTransition(
+        position: _slideAnimation,
+        child: ScaleTransition(
+          scale: _scaleAnimation,
+          child: Container(
+            padding: const EdgeInsets.fromLTRB(24, 26, 24, 22),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(28),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.14),
+                  blurRadius: 28,
+                  offset: const Offset(0, 12),
+                ),
+                BoxShadow(
+                  color: AppColors.successPrimary.withOpacity(0.18),
+                  blurRadius: 18,
+                  offset: const Offset(0, 0),
+                ),
+              ],
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // Animated Checkmark
+                RotationTransition(
+                  turns: _rotateAnimation,
+                  child: ScaleTransition(
+                    scale: _scaleAnimation,
+                    child: Container(
+                      width: 82,
+                      height: 82,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        gradient: const LinearGradient(
+                          begin: Alignment(-1, -1),
+                          end: Alignment(1, 1),
+                          colors: [
+                            AppColors.successSecondary,
+                            AppColors.successPrimary,
+                          ],
+                        ),
+                        boxShadow: [
+                          BoxShadow(
+                            color: AppColors.successPrimary.withOpacity(0.35),
+                            blurRadius: 20,
+                            offset: const Offset(0, 8),
+                          ),
+                        ],
+                      ),
+                      child: const Icon(
+                        Icons.check_rounded,
+                        color: Colors.white,
+                        size: 44,
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 18),
+
+                // Title
+                const Text(
+                  "Password Updated",
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontSize: 24,
+                    fontWeight: FontWeight.w900,
+                    color: Color(0xFF1C1C1E),
+                    letterSpacing: -0.25,
+                  ),
+                ),
+                const SizedBox(height: 8),
+
+                // Description
+                const Text(
+                  "Your password has been changed.",
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontSize: 14,
+                    height: 1.4,
+                    fontWeight: FontWeight.w500,
+                    color: Color(0xFF6B7280),
+                  ),
+                ),
+                const SizedBox(height: 20),
+
+                // Continue Button
+                SizedBox(
+                  width: double.infinity,
+                  height: 50,
+                  child: ElevatedButton(
+                    style: ElevatedButton.styleFrom(
+                      elevation: 4,
+                      backgroundColor: AppColors.successPrimary,
+                      foregroundColor: Colors.white,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                      shadowColor: AppColors.successPrimary.withOpacity(0.35),
+                    ),
+                    onPressed: () {
+                      Navigator.of(context).pop();
+                      Navigator.pushAndRemoveUntil(
+                        context,
+                        MaterialPageRoute(builder: (_) => const LoginScreen()),
+                        (route) => false,
+                      );
+                    },
+                    child: const Text(
+                      "Back to Login",
+                      style: TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: 0.2,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
     );
   }
 }

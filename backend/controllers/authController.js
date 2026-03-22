@@ -2,11 +2,29 @@ const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 const crypto = require("crypto");
 const User = require("../models/User");
+const UserProfile = require("../models/UserProfile");
 const { sendResetCodeEmail } = require("../services/emailService");
+
+// Error handler wrapper
+const handleError = (error, res) => {
+  console.error("Error:", error.message);
+  
+  // Don't expose internal error details
+  if (process.env.NODE_ENV === "production") {
+    return res.status(500).json({
+      message: "An error occurred. Please try again later.",
+    });
+  }
+  
+  return res.status(500).json({
+    message: "Server error",
+    error: error.message,
+  });
+};
 
 const register = async (req, res) => {
   try {
-    const { email, password, role } = req.body;
+    const { email, password } = req.body;
 
     if (!email || !password) {
       return res.status(400).json({
@@ -14,11 +32,18 @@ const register = async (req, res) => {
       });
     }
 
+    // Validate password strength
+    if (password.length < 8) {
+      return res.status(400).json({
+        message: "Password must be at least 8 characters",
+      });
+    }
+
     const existingUser = await User.findOne({ email: email.toLowerCase() });
 
     if (existingUser) {
-      return res.status(400).json({
-        message: "Email already exists",
+      return res.status(409).json({
+        message: "Email already registered",
       });
     }
 
@@ -28,11 +53,21 @@ const register = async (req, res) => {
       name: "",
       email: email.toLowerCase(),
       password: hashedPassword,
-      role: role || "user",
+      role: "user", // Always set to "user", NEVER from request
     });
+
+    const token = jwt.sign(
+      {
+        userId: user._id,
+        role: user.role,
+      },
+      process.env.JWT_SECRET,
+      { expiresIn: "7d" }
+    );
 
     res.status(201).json({
       message: "Account created successfully",
+      token,
       userId: user._id,
       user: {
         id: user._id,
@@ -42,10 +77,7 @@ const register = async (req, res) => {
       },
     });
   } catch (error) {
-    res.status(500).json({
-      message: "Server error",
-      error: error.message,
-    });
+    handleError(error, res);
   }
 };
 
@@ -53,19 +85,25 @@ const login = async (req, res) => {
   try {
     const { email, password } = req.body;
 
+    if (!email || !password) {
+      return res.status(400).json({
+        message: "Email and password are required",
+      });
+    }
+
     const user = await User.findOne({ email: email.toLowerCase() });
 
     if (!user) {
-      return res.status(400).json({
-        message: "User not found",
+      return res.status(401).json({
+        message: "Invalid email or password",
       });
     }
 
     const isMatch = await bcrypt.compare(password, user.password);
 
     if (!isMatch) {
-      return res.status(400).json({
-        message: "Wrong email or password",
+      return res.status(401).json({
+        message: "Invalid email or password",
       });
     }
 
@@ -90,27 +128,31 @@ const login = async (req, res) => {
       },
     });
   } catch (error) {
-    res.status(500).json({
-      message: "Server error",
-      error: error.message,
-    });
+    handleError(error, res);
   }
 };
 
 const updateUserName = async (req, res) => {
   try {
-    const { userId, name } = req.body;
+    const { name } = req.body;
+    const userId = req.user.userId; // From JWT token, not request body
 
-    if (!userId || !name) {
+    if (!name || !name.trim()) {
       return res.status(400).json({
-        message: "userId and name are required",
+        message: "Name is required",
+      });
+    }
+
+    if (name.trim().length < 2 || name.trim().length > 100) {
+      return res.status(400).json({
+        message: "Name must be between 2 and 100 characters",
       });
     }
 
     const user = await User.findByIdAndUpdate(
       userId,
       { name: name.trim() },
-      { returnDocument: "after" }
+      { new: true }
     );
 
     if (!user) {
@@ -121,13 +163,14 @@ const updateUserName = async (req, res) => {
 
     res.status(200).json({
       message: "Name updated successfully",
-      user,
+      user: {
+        id: user._id,
+        name: user.name,
+        email: user.email,
+      },
     });
   } catch (error) {
-    res.status(500).json({
-      message: "Server error",
-      error: error.message,
-    });
+    handleError(error, res);
   }
 };
 
@@ -147,7 +190,7 @@ const sendResetCode = async (req, res) => {
 
     if (!user) {
       return res.status(404).json({
-        message: "User not found",
+        message: "If email exists, verification code will be sent",
       });
     }
 
@@ -164,16 +207,24 @@ const sendResetCode = async (req, res) => {
 
     await user.save();
 
-    await sendResetCodeEmail(user.email, code);
+    try {
+      await sendResetCodeEmail(user.email, code);
+    } catch (emailError) {
+      // Rollback the code if email fails
+      user.reset_code = null;
+      user.reset_code_expires = null;
+      await user.save();
+
+      return res.status(503).json({
+        message: "Email service temporarily unavailable. Please try again later.",
+      });
+    }
 
     res.status(200).json({
-      message: "Verification code sent successfully",
+      message: "If email exists, verification code will be sent",
     });
   } catch (error) {
-    res.status(500).json({
-      message: "Server error",
-      error: error.message,
-    });
+    handleError(error, res);
   }
 };
 
@@ -199,13 +250,18 @@ const verifyResetCode = async (req, res) => {
 
     if (!user.reset_code || !user.reset_code_expires) {
       return res.status(400).json({
-        message: "No reset code found",
+        message: "No reset code found. Request a new one.",
       });
     }
 
     if (user.reset_code_expires < new Date()) {
+      user.reset_code = null;
+      user.reset_code_expires = null;
+      user.reset_code_verified = false;
+      await user.save();
+
       return res.status(400).json({
-        message: "Verification code expired",
+        message: "Verification code expired. Request a new one.",
       });
     }
 
@@ -227,10 +283,7 @@ const verifyResetCode = async (req, res) => {
       message: "Code verified successfully",
     });
   } catch (error) {
-    res.status(500).json({
-      message: "Server error",
-      error: error.message,
-    });
+    handleError(error, res);
   }
 };
 
@@ -244,9 +297,9 @@ const resetPassword = async (req, res) => {
       });
     }
 
-    if (newPassword.length < 6) {
+    if (newPassword.length < 8) {
       return res.status(400).json({
-        message: "Password must be at least 6 characters",
+        message: "Password must be at least 8 characters",
       });
     }
 
@@ -279,10 +332,36 @@ const resetPassword = async (req, res) => {
       message: "Password reset successfully",
     });
   } catch (error) {
-    res.status(500).json({
-      message: "Server error",
-      error: error.message,
+    handleError(error, res);
+  }
+};
+
+const getMe = async (req, res) => {
+  try {
+    const userId = req.user.userId;
+
+    const user = await User.findById(userId).select("-password -reset_code");
+
+    if (!user) {
+      return res.status(404).json({
+        message: "User not found",
+      });
+    }
+
+    const profile = await UserProfile.findOne({ user_id: userId });
+
+    res.status(200).json({
+      message: "User fetched successfully",
+      user: {
+        id: user._id,
+        name: user.name,
+        email: user.email,
+        role: user.role,
+        profile: profile || null,
+      },
     });
+  } catch (error) {
+    handleError(error, res);
   }
 };
 
@@ -293,4 +372,5 @@ module.exports = {
   sendResetCode,
   verifyResetCode,
   resetPassword,
+  getMe,
 };

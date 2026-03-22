@@ -175,117 +175,116 @@ class _SignUpFlowScreenState extends State<SignUpFlowScreen> {
     if (values.contains("None")) return [];
     return values.map((e) => e.toLowerCase().replaceAll(" ", "_")).toList();
   }
- void _showSuccessDialog() {
-  showDialog(
-    context: context,
-    barrierDismissible: false,
-    builder: (context) {
-      return Dialog(
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        insetPadding: const EdgeInsets.symmetric(horizontal: 28),
-        child: Container(
-          padding: const EdgeInsets.fromLTRB(22, 24, 22, 18),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(28),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withOpacity(0.08),
-                blurRadius: 30,
-                offset: const Offset(0, 12),
-              ),
-            ],
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Container(
-                width: 78,
-                height: 78,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  gradient: const LinearGradient(
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                    colors: [
-                      Color(0xFFE9F9EE),
-                      Color(0xFFD8F4E1),
-                    ],
-                  ),
-                  border: Border.all(
-                    color: const Color(0xFFBFE8CB),
-                    width: 1.2,
-                  ),
+
+  void _showSuccessDialog() {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) {
+        return Dialog(
+          backgroundColor: Colors.transparent,
+          elevation: 0,
+          insetPadding: const EdgeInsets.symmetric(horizontal: 28),
+          child: Container(
+            padding: const EdgeInsets.fromLTRB(22, 24, 22, 18),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(28),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.08),
+                  blurRadius: 30,
+                  offset: const Offset(0, 12),
                 ),
-                child: const Icon(
-                  Icons.check_rounded,
-                  color: Color(0xFF30B95A),
-                  size: 42,
-                ),
-              ),
-              const SizedBox(height: 18),
-              const Text(
-                "Account Created",
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  fontSize: 22,
-                  fontWeight: FontWeight.w800,
-                  color: Color(0xFF1C1C1E),
-                  letterSpacing: -0.3,
-                ),
-              ),
-              const SizedBox(height: 8),
-              const Text(
-                "Your account has been created successfully.",
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  fontSize: 15,
-                  height: 1.45,
-                  fontWeight: FontWeight.w500,
-                  color: Color(0xFF6B7280),
-                ),
-              ),
-              const SizedBox(height: 22),
-              SizedBox(
-                width: double.infinity,
-                height: 52,
-                child: ElevatedButton(
-                  style: ElevatedButton.styleFrom(
-                    elevation: 0,
-                    backgroundColor: const Color(0xFF34C759),
-                    foregroundColor: Colors.white,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(18),
+              ],
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  width: 78,
+                  height: 78,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    gradient: const LinearGradient(
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                      colors: [
+                        AppColors.successSecondary,
+                        AppColors.successPrimary,
+                      ],
+                    ),
+                    border: Border.all(
+                      color: AppColors.successBorder,
+                      width: 1.2,
                     ),
                   ),
-                  onPressed: () {
-                    Navigator.pop(context);
-                    Navigator.pushAndRemoveUntil(
-                      context,
-                      MaterialPageRoute(
-                        builder: (_) => const LoginScreen(),
+                  child: const Icon(
+                    Icons.check_rounded,
+                    color: Colors.white,
+                    size: 42,
+                  ),
+                ),
+                const SizedBox(height: 18),
+                const Text(
+                  "Account Created",
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontSize: 22,
+                    fontWeight: FontWeight.w800,
+                    color: Color(0xFF1C1C1E),
+                    letterSpacing: -0.3,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                const Text(
+                  "Your account has been created successfully.",
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontSize: 15,
+                    height: 1.45,
+                    fontWeight: FontWeight.w500,
+                    color: Color(0xFF6B7280),
+                  ),
+                ),
+                const SizedBox(height: 22),
+                SizedBox(
+                  width: double.infinity,
+                  height: 52,
+                  child: ElevatedButton(
+                    style: ElevatedButton.styleFrom(
+                      elevation: 0,
+                      backgroundColor: AppColors.successPrimary,
+                      foregroundColor: Colors.white,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(18),
                       ),
-                      (route) => false,
-                    );
-                  },
-                  child: const Text(
-                    "Continue",
-                    style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w700,
-                      letterSpacing: 0.2,
+                    ),
+                    onPressed: () {
+                      Navigator.pop(context);
+                      Navigator.pushAndRemoveUntil(
+                        context,
+                        MaterialPageRoute(builder: (_) => const LoginScreen()),
+                        (route) => false,
+                      );
+                    },
+                    child: const Text(
+                      "Continue",
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w700,
+                        letterSpacing: 0.2,
+                      ),
                     ),
                   ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
-        ),
-      );
-    },
-  );
-}
+        );
+      },
+    );
+  }
 
   Future<void> _finishProfile() async {
     final name = _nameCtrl.text.trim();
@@ -300,26 +299,21 @@ class _SignUpFlowScreenState extends State<SignUpFlowScreen> {
     setState(() => _saving = true);
 
     try {
-      final updateNameResult = await _authService.updateUserName(
-        userId: widget.userId,
-        name: name,
-      );
+      final updateNameResult = await _authService.updateUserName(name: name);
 
       if (updateNameResult['user'] == null) {
         if (!mounted) return;
         setState(() => _saving = false);
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(
-              updateNameResult['message'] ?? 'Failed to save name',
-            ),
+            content: Text(updateNameResult['message'] ?? 'Failed to save name'),
           ),
         );
         return;
       }
 
       final profileResult = await _authService.saveProfile(
-          name: _nameCtrl.text.trim(),
+        name: _nameCtrl.text.trim(),
         goal: _mapGoal(_selectedGoal),
         gender: _mapGender(_gender),
         dateOfBirth: _selectedBirthDate?.toIso8601String() ?? "",
@@ -339,23 +333,20 @@ class _SignUpFlowScreenState extends State<SignUpFlowScreen> {
       if (profileResult['profile'] == null) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(
-              profileResult['message'] ?? 'Failed to save profile',
-            ),
+            content: Text(profileResult['message'] ?? 'Failed to save profile'),
           ),
         );
         return;
       }
 
       _showSuccessDialog();
-
     } catch (e) {
       if (!mounted) return;
 
       setState(() => _saving = false);
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Something went wrong')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Something went wrong')));
     }
   }
 
@@ -560,8 +551,8 @@ class _SignUpFlowScreenState extends State<SignUpFlowScreen> {
                               child: CircularProgressIndicator(
                                 value: value,
                                 strokeWidth: 3.4,
-                                backgroundColor:
-                                    AppColors.mediumBlue.withOpacity(0.18),
+                                backgroundColor: AppColors.mediumBlue
+                                    .withOpacity(0.18),
                                 valueColor: const AlwaysStoppedAnimation<Color>(
                                   AppColors.mediumBlue,
                                 ),
@@ -1259,8 +1250,8 @@ class _HeightRuler extends StatelessWidget {
                 height: isCenter
                     ? 28
                     : isMajor
-                        ? 22
-                        : 12,
+                    ? 22
+                    : 12,
                 decoration: BoxDecoration(
                   color: isCenter
                       ? AppColors.mediumBlue
@@ -1895,8 +1886,10 @@ class _AllergyOptionChip extends StatelessWidget {
           children: [
             Center(
               child: Padding(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 8,
+                  vertical: 10,
+                ),
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
@@ -2068,16 +2061,14 @@ class _ConditionChip extends StatelessWidget {
           children: [
             Center(
               child: Padding(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 8,
+                  vertical: 10,
+                ),
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    Image.asset(
-                      image,
-                      width: 40,
-                      height: 40,
-                    ),
+                    Image.asset(image, width: 40, height: 40),
                     const SizedBox(height: 8),
                     Text(
                       title,
@@ -2110,11 +2101,7 @@ class _ConditionChip extends StatelessWidget {
                   ),
                 ),
                 child: selected
-                    ? const Icon(
-                        Icons.check,
-                        color: Colors.white,
-                        size: 14,
-                      )
+                    ? const Icon(Icons.check, color: Colors.white, size: 14)
                     : null,
               ),
             ),

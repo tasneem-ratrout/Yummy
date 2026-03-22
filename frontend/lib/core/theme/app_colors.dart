@@ -28,4 +28,21 @@ class AppColors {
 
   static const Color labelGray = Color(0xFFB0B0B0);
   static const Color red = Color.fromARGB(255, 203, 55, 45);
+
+  static const Color caloriesPurple = Color(0xFF7C4DFF);
+static const Color proteinBlue = Color(0xFF5B8DEF);
+static const Color fatOrange = Color(0xFFFF9E57);
+static const Color carbsGreen = Color(0xFF3EB489);
+
+static const Color caloriesBg = Color(0xFFF4EEFF);
+static const Color proteinBg = Color(0xFFEFF4FF);
+static const Color fatBg = Color(0xFFFFF4EC);
+static const Color carbsBg = Color(0xFFEFFBF5);
+
+  // Shared success palette
+  static const Color successPrimary = Color(0xFF4F9A71);
+  static const Color successSecondary = Color(0xFF73B98D);
+  static const Color successBorder = Color(0xFF6CAC84);
+
+  static const Color green = successPrimary;
 }

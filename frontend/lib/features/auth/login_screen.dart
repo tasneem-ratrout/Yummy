@@ -42,16 +42,16 @@ class _LoginScreenState extends State<LoginScreen>
       duration: const Duration(milliseconds: 420),
     );
 
-    _shakeAnimation = TweenSequence<double>([
-      TweenSequenceItem(tween: Tween(begin: 0, end: -10), weight: 1),
-      TweenSequenceItem(tween: Tween(begin: -10, end: 10), weight: 2),
-      TweenSequenceItem(tween: Tween(begin: 10, end: -8), weight: 2),
-      TweenSequenceItem(tween: Tween(begin: -8, end: 8), weight: 2),
-      TweenSequenceItem(tween: Tween(begin: 8, end: -4), weight: 1),
-      TweenSequenceItem(tween: Tween(begin: -4, end: 0), weight: 1),
-    ]).animate(
-      CurvedAnimation(parent: _shakeController, curve: Curves.easeOut),
-    );
+    _shakeAnimation = TweenSequence<double>(
+      [
+        TweenSequenceItem(tween: Tween(begin: 0, end: -10), weight: 1),
+        TweenSequenceItem(tween: Tween(begin: -10, end: 10), weight: 2),
+        TweenSequenceItem(tween: Tween(begin: 10, end: -8), weight: 2),
+        TweenSequenceItem(tween: Tween(begin: -8, end: 8), weight: 2),
+        TweenSequenceItem(tween: Tween(begin: 8, end: -4), weight: 1),
+        TweenSequenceItem(tween: Tween(begin: -4, end: 0), weight: 1),
+      ],
+    ).animate(CurvedAnimation(parent: _shakeController, curve: Curves.easeOut));
   }
 
   @override
@@ -80,8 +80,10 @@ class _LoginScreenState extends State<LoginScreen>
       return;
     }
 
-    if (!email.contains("@")) {
-      _showError("Please enter a valid email");
+    // Proper email validation using regex
+    final emailRegex = RegExp(r'^[^\s@]+@[^\s@]+\.[^\s@]+$');
+    if (!emailRegex.hasMatch(email)) {
+      _showError("Please enter a valid email address");
       return;
     }
 
@@ -90,8 +92,8 @@ class _LoginScreenState extends State<LoginScreen>
       return;
     }
 
-    if (pass.length < 6) {
-      _showError("Password must be at least 6 characters");
+    if (pass.length < 8) {
+      _showError("Password must be at least 8 characters");
       return;
     }
 
@@ -101,10 +103,7 @@ class _LoginScreenState extends State<LoginScreen>
     });
 
     try {
-      final result = await _authService.login(
-        email: email,
-        password: pass,
-      );
+      final result = await _authService.login(email: email, password: pass);
 
       if (!mounted) return;
 
@@ -117,9 +116,7 @@ class _LoginScreenState extends State<LoginScreen>
 
       Navigator.pushReplacement(
         context,
-        MaterialPageRoute(
-          builder: (_) => const HomeScreen(),
-        ),
+        MaterialPageRoute(builder: (_) => const HomeScreen()),
       );
     } catch (e) {
       _showError("Something went wrong");
@@ -139,11 +136,7 @@ class _LoginScreenState extends State<LoginScreen>
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 SizedBox(height: h * 0.03),
-                const Row(
-                  children: [
-                    AppBackButton(),
-                  ],
-                ),
+                const Row(children: [AppBackButton()]),
                 const SizedBox(height: 20),
                 const Text(
                   "Welcome Back to Yummy",
@@ -177,9 +170,7 @@ class _LoginScreenState extends State<LoginScreen>
                     decoration: BoxDecoration(
                       color: const Color(0xFFFFE8E8),
                       borderRadius: BorderRadius.circular(16),
-                      border: Border.all(
-                        color: const Color(0xFFFFB3B3),
-                      ),
+                      border: Border.all(color: const Color(0xFFFFB3B3)),
                     ),
                     child: Row(
                       children: [
@@ -301,8 +292,7 @@ class _LoginScreenState extends State<LoginScreen>
                                     height: 22,
                                     child: CircularProgressIndicator(
                                       strokeWidth: 2.4,
-                                      valueColor:
-                                          AlwaysStoppedAnimation<Color>(
+                                      valueColor: AlwaysStoppedAnimation<Color>(
                                         Colors.white,
                                       ),
                                     ),
