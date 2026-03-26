@@ -1,10 +1,11 @@
 import 'package:flutter/material.dart';
 import 'dart:math' as math;
+import 'package:lottie/lottie.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../shared/app_background.dart';
 import '../../../shared/back_button_widget.dart';
 import '../../../core/services/auth_service.dart';
-import 'login_screen.dart';
+import '../home/home_screen.dart';
 
 class SignUpFlowScreen extends StatefulWidget {
   final String userId;
@@ -197,28 +198,20 @@ class _SignUpFlowScreenState extends State<SignUpFlowScreen> {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Container(
-                  width: 78,
-                  height: 78,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    gradient: const LinearGradient(
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                      colors: [
-                        AppColors.successSecondary,
-                        AppColors.successPrimary,
-                      ],
-                    ),
-                    border: Border.all(
-                      color: AppColors.successBorder,
-                      width: 1.2,
-                    ),
-                  ),
-                  child: const Icon(
-                    Icons.check_rounded,
-                    color: Colors.white,
-                    size: 42,
+                SizedBox(
+                  width: 128,
+                  height: 128,
+                  child: Lottie.asset(
+                    'assets/lottie/true.json',
+                    fit: BoxFit.contain,
+                    repeat: false,
+                    errorBuilder: (context, error, stackTrace) {
+                      return const Icon(
+                        Icons.check_circle_rounded,
+                        color: AppColors.successPrimary,
+                        size: 64,
+                      );
+                    },
                   ),
                 ),
                 const SizedBox(height: 18),
@@ -250,7 +243,7 @@ class _SignUpFlowScreenState extends State<SignUpFlowScreen> {
                   child: ElevatedButton(
                     style: ElevatedButton.styleFrom(
                       elevation: 0,
-                      backgroundColor: AppColors.successPrimary,
+                      backgroundColor: AppColors.navy,
                       foregroundColor: Colors.white,
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(18),
@@ -260,7 +253,7 @@ class _SignUpFlowScreenState extends State<SignUpFlowScreen> {
                       Navigator.pop(context);
                       Navigator.pushAndRemoveUntil(
                         context,
-                        MaterialPageRoute(builder: (_) => const LoginScreen()),
+                        MaterialPageRoute(builder: (_) => const HomeScreen()),
                         (route) => false,
                       );
                     },

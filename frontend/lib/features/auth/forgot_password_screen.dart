@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'dart:async';
 import 'package:flutter/services.dart';
+import 'package:lottie/lottie.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../shared/app_background.dart';
 import '../../../shared/glass_text_field.dart';
@@ -777,36 +778,24 @@ class _SuccessDialogState extends State<_SuccessDialog>
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                // Animated Checkmark
                 RotationTransition(
                   turns: _rotateAnimation,
                   child: ScaleTransition(
                     scale: _scaleAnimation,
-                    child: Container(
-                      width: 82,
-                      height: 82,
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        gradient: const LinearGradient(
-                          begin: Alignment(-1, -1),
-                          end: Alignment(1, 1),
-                          colors: [
-                            AppColors.successSecondary,
-                            AppColors.successPrimary,
-                          ],
-                        ),
-                        boxShadow: [
-                          BoxShadow(
-                            color: AppColors.successPrimary.withOpacity(0.35),
-                            blurRadius: 20,
-                            offset: const Offset(0, 8),
-                          ),
-                        ],
-                      ),
-                      child: const Icon(
-                        Icons.check_rounded,
-                        color: Colors.white,
-                        size: 44,
+                    child: SizedBox(
+                      width: 128,
+                      height: 128,
+                      child: Lottie.asset(
+                        'assets/lottie/true.json',
+                        fit: BoxFit.contain,
+                        repeat: false,
+                        errorBuilder: (context, error, stackTrace) {
+                          return const Icon(
+                            Icons.check_circle_rounded,
+                            color: AppColors.successPrimary,
+                            size: 70,
+                          );
+                        },
                       ),
                     ),
                   ),
@@ -846,12 +835,12 @@ class _SuccessDialogState extends State<_SuccessDialog>
                   child: ElevatedButton(
                     style: ElevatedButton.styleFrom(
                       elevation: 4,
-                      backgroundColor: AppColors.successPrimary,
+                      backgroundColor: AppColors.navy,
                       foregroundColor: Colors.white,
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(14),
                       ),
-                      shadowColor: AppColors.successPrimary.withOpacity(0.35),
+                      shadowColor: AppColors.navy.withOpacity(0.35),
                     ),
                     onPressed: () {
                       Navigator.of(context).pop();
