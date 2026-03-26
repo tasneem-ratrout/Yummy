@@ -32,11 +32,7 @@ class _SignUpFlowScreenState extends State<SignUpFlowScreen> {
 
   DateTime? _selectedBirthDate;
   int? _selectedAge;
-
-  bool _isKgSelected = true;
   double _selectedWeight = 60;
-
-  bool _isCmSelected = true;
   final PageController _heightController = PageController(
     viewportFraction: 0.34,
     initialPage: 35,
@@ -318,9 +314,9 @@ class _SignUpFlowScreenState extends State<SignUpFlowScreen> {
         gender: _mapGender(_gender),
         dateOfBirth: _selectedBirthDate?.toIso8601String() ?? "",
         heightValue: _selectedHeight,
-        heightUnit: _isCmSelected ? "cm" : "ft",
+        heightUnit: "cm",
         weightValue: _selectedWeight,
-        weightUnit: _isKgSelected ? "kg" : "lb",
+        weightUnit: "kg",
         activityLevel: _mapActivity(_selectedActivity),
         allergies: _cleanList(_selectedAllergies),
         medicalConditions: _cleanList(_selectedConditions),
@@ -447,13 +443,9 @@ class _SignUpFlowScreenState extends State<SignUpFlowScreen> {
                     ),
                     _StepScaffold(
                       child: _HeightStep(
-                        isCmSelected: _isCmSelected,
                         selectedHeight: _selectedHeight,
                         heightValues: _heightValues,
                         controller: _heightController,
-                        onUnitChanged: (value) {
-                          setState(() => _isCmSelected = value);
-                        },
                         onHeightChanged: (value) {
                           setState(() => _selectedHeight = value);
                         },
@@ -461,11 +453,7 @@ class _SignUpFlowScreenState extends State<SignUpFlowScreen> {
                     ),
                     _StepScaffold(
                       child: _WeightStep(
-                        isKgSelected: _isKgSelected,
                         selectedWeight: _selectedWeight,
-                        onUnitChanged: (value) {
-                          setState(() => _isKgSelected = value);
-                        },
                         onWeightChanged: (value) {
                           setState(() => _selectedWeight = value);
                         },
@@ -1036,19 +1024,15 @@ class _BirthStep extends StatelessWidget {
 }
 
 class _HeightStep extends StatelessWidget {
-  final bool isCmSelected;
   final int selectedHeight;
   final List<int> heightValues;
   final PageController controller;
-  final ValueChanged<bool> onUnitChanged;
   final ValueChanged<int> onHeightChanged;
 
   const _HeightStep({
-    required this.isCmSelected,
     required this.selectedHeight,
     required this.heightValues,
     required this.controller,
-    required this.onUnitChanged,
     required this.onHeightChanged,
   });
 
@@ -1064,10 +1048,7 @@ class _HeightStep extends StatelessWidget {
               "We will use this data to give you\na better diet plan for your life.",
         ),
         const SizedBox(height: 26),
-        _HeightUnitSwitcher(
-          isCmSelected: isCmSelected,
-          onChanged: onUnitChanged,
-        ),
+        const _UnitPill(label: "cm"),
         const SizedBox(height: 26),
         const Icon(
           Icons.arrow_drop_down_rounded,
@@ -1087,80 +1068,6 @@ class _HeightStep extends StatelessWidget {
         const SizedBox(height: 10),
         _HeightRuler(selectedHeight: selectedHeight),
       ],
-    );
-  }
-}
-
-class _HeightUnitSwitcher extends StatelessWidget {
-  final bool isCmSelected;
-  final ValueChanged<bool> onChanged;
-
-  const _HeightUnitSwitcher({
-    required this.isCmSelected,
-    required this.onChanged,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: 112,
-      height: 42,
-      padding: const EdgeInsets.all(4),
-      decoration: BoxDecoration(
-        color: AppColors.white.withOpacity(0.95),
-        borderRadius: BorderRadius.circular(30),
-        border: Border.all(color: AppColors.dark.withOpacity(0.06)),
-      ),
-      child: Row(
-        children: [
-          Expanded(
-            child: GestureDetector(
-              onTap: () => onChanged(false),
-              child: Container(
-                alignment: Alignment.center,
-                decoration: BoxDecoration(
-                  color: !isCmSelected
-                      ? AppColors.deepBlue
-                      : Colors.transparent,
-                  borderRadius: BorderRadius.circular(24),
-                ),
-                child: Text(
-                  "ft",
-                  style: TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w800,
-                    color: !isCmSelected
-                        ? Colors.white
-                        : AppColors.darkBlue.withOpacity(0.65),
-                  ),
-                ),
-              ),
-            ),
-          ),
-          Expanded(
-            child: GestureDetector(
-              onTap: () => onChanged(true),
-              child: Container(
-                alignment: Alignment.center,
-                decoration: BoxDecoration(
-                  color: isCmSelected ? AppColors.deepBlue : Colors.transparent,
-                  borderRadius: BorderRadius.circular(24),
-                ),
-                child: Text(
-                  "cm",
-                  style: TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w800,
-                    color: isCmSelected
-                        ? Colors.white
-                        : AppColors.darkBlue.withOpacity(0.65),
-                  ),
-                ),
-              ),
-            ),
-          ),
-        ],
-      ),
     );
   }
 }
@@ -1301,15 +1208,11 @@ class _HeightRuler extends StatelessWidget {
 }
 
 class _WeightStep extends StatelessWidget {
-  final bool isKgSelected;
   final double selectedWeight;
-  final ValueChanged<bool> onUnitChanged;
   final ValueChanged<double> onWeightChanged;
 
   const _WeightStep({
-    required this.isKgSelected,
     required this.selectedWeight,
-    required this.onUnitChanged,
     required this.onWeightChanged,
   });
 
@@ -1326,10 +1229,7 @@ class _WeightStep extends StatelessWidget {
                 "We will use this data to give you\na better diet plan for your life.",
           ),
           const SizedBox(height: 18),
-          _WeightUnitSwitcher(
-            isKgSelected: isKgSelected,
-            onChanged: onUnitChanged,
-          ),
+          const _UnitPill(label: "kg"),
           const SizedBox(height: 16),
           const Icon(
             Icons.arrow_drop_down_rounded,
@@ -1350,75 +1250,28 @@ class _WeightStep extends StatelessWidget {
   }
 }
 
-class _WeightUnitSwitcher extends StatelessWidget {
-  final bool isKgSelected;
-  final ValueChanged<bool> onChanged;
+class _UnitPill extends StatelessWidget {
+  final String label;
 
-  const _WeightUnitSwitcher({
-    required this.isKgSelected,
-    required this.onChanged,
-  });
+  const _UnitPill({required this.label});
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      width: 112,
+      width: 84,
       height: 42,
-      padding: const EdgeInsets.all(4),
+      alignment: Alignment.center,
       decoration: BoxDecoration(
-        color: AppColors.white.withOpacity(0.95),
+        color: AppColors.deepBlue,
         borderRadius: BorderRadius.circular(30),
-        border: Border.all(color: AppColors.dark.withOpacity(0.06)),
       ),
-      child: Row(
-        children: [
-          Expanded(
-            child: GestureDetector(
-              onTap: () => onChanged(true),
-              child: Container(
-                alignment: Alignment.center,
-                decoration: BoxDecoration(
-                  color: isKgSelected ? AppColors.deepBlue : Colors.transparent,
-                  borderRadius: BorderRadius.circular(24),
-                ),
-                child: Text(
-                  "kg",
-                  style: TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w800,
-                    color: isKgSelected
-                        ? Colors.white
-                        : AppColors.darkBlue.withOpacity(0.65),
-                  ),
-                ),
-              ),
-            ),
-          ),
-          Expanded(
-            child: GestureDetector(
-              onTap: () => onChanged(false),
-              child: Container(
-                alignment: Alignment.center,
-                decoration: BoxDecoration(
-                  color: !isKgSelected
-                      ? AppColors.deepBlue
-                      : Colors.transparent,
-                  borderRadius: BorderRadius.circular(24),
-                ),
-                child: Text(
-                  "lb",
-                  style: TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w800,
-                    color: !isKgSelected
-                        ? Colors.white
-                        : AppColors.darkBlue.withOpacity(0.65),
-                  ),
-                ),
-              ),
-            ),
-          ),
-        ],
+      child: Text(
+        label,
+        style: const TextStyle(
+          fontSize: 13,
+          fontWeight: FontWeight.w800,
+          color: Colors.white,
+        ),
       ),
     );
   }

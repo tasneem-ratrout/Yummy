@@ -1,4 +1,6 @@
+//side Menu
 import 'package:flutter/material.dart';
+import '../core/config/app_config.dart';
 import '../core/theme/app_colors.dart';
 import '../features/profile/personal_details_screen.dart';
 import '../features/auth/welcome_screen.dart';
@@ -26,10 +28,47 @@ class AppDrawer extends StatelessWidget {
     return "${parts[0][0]}${parts[1][0]}".toUpperCase();
   }
 
+  String? _resolveImageUrl(dynamic value) {
+    final raw = (value?.toString() ?? "").trim();
+    if (raw.isEmpty) return null;
+
+    if (raw.startsWith("http://") || raw.startsWith("https://")) {
+      return raw;
+    }
+
+    final baseUri = Uri.tryParse(AppConfig.baseUrl);
+    if (baseUri == null) return raw;
+
+    final authority = baseUri.hasPort
+        ? "${baseUri.host}:${baseUri.port}"
+        : baseUri.host;
+    final origin = "${baseUri.scheme}://$authority";
+
+    if (raw.startsWith("/")) {
+      return "$origin$raw";
+    }
+
+    return "$origin/$raw";
+  }
+
+  String? _extractUserImageUrl() {
+    final profile = user?["profile"] as Map<String, dynamic>?;
+    final rawImageValue =
+        profile?["image_url"] ??
+        profile?["image"] ??
+        profile?["imageUrl"] ??
+        user?["image_url"] ??
+        user?["image"] ??
+        user?["imageUrl"];
+
+    return _resolveImageUrl(rawImageValue);
+  }
+
   @override
   Widget build(BuildContext context) {
     final userName = user?["name"] ?? "User";
     final userEmail = user?["email"] ?? "";
+    final userImageUrl = _extractUserImageUrl();
 
     return Drawer(
       backgroundColor: const Color(0xFFF5F8FC),
@@ -87,29 +126,46 @@ class AppDrawer extends StatelessWidget {
                 ),
                 child: Row(
                   children: [
-                    Container(
-                      width: 58,
-                      height: 58,
-                      decoration: BoxDecoration(
-                        gradient: const LinearGradient(
-                          colors: [
-                            AppColors.deepBlue,
-                            AppColors.royalBlue,
-                          ],
-                          begin: Alignment.topLeft,
-                          end: Alignment.bottomRight,
-                        ),
-                        borderRadius: BorderRadius.circular(18),
-                      ),
-                      child: Center(
-                        child: Text(
-                          getInitials(userName),
-                          style: const TextStyle(
-                            color: AppColors.white,
-                            fontSize: 18,
-                            fontWeight: FontWeight.w800,
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(18),
+                      child: Container(
+                        width: 58,
+                        height: 58,
+                        decoration: BoxDecoration(
+                          gradient: const LinearGradient(
+                            colors: [AppColors.deepBlue, AppColors.royalBlue],
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
                           ),
+                          borderRadius: BorderRadius.circular(18),
                         ),
+                        child: userImageUrl != null
+                            ? Image.network(
+                                userImageUrl,
+                                fit: BoxFit.cover,
+                                errorBuilder: (_, __, ___) {
+                                  return Center(
+                                    child: Text(
+                                      getInitials(userName),
+                                      style: const TextStyle(
+                                        color: AppColors.white,
+                                        fontSize: 18,
+                                        fontWeight: FontWeight.w800,
+                                      ),
+                                    ),
+                                  );
+                                },
+                              )
+                            : Center(
+                                child: Text(
+                                  getInitials(userName),
+                                  style: const TextStyle(
+                                    color: AppColors.white,
+                                    fontSize: 18,
+                                    fontWeight: FontWeight.w800,
+                                  ),
+                                ),
+                              ),
                       ),
                     ),
                     const SizedBox(width: 14),
@@ -180,15 +236,19 @@ class AppDrawer extends StatelessWidget {
                     title: "Personal Details",
                     subtitle: "View and manage your information",
                     onTap: () {
-  Navigator.pop(context);
-  Navigator.push(
-    context,
-    MaterialPageRoute(
-      builder: (_) => const PersonalDetailsScreen(),
-    ),
-  );
-},
+                      Navigator.pop(context);
+                      if (onProfileTap != null) {
+                        onProfileTap!.call();
+                        return;
+                      }
 
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => const PersonalDetailsScreen(),
+                        ),
+                      );
+                    },
                   ),
 
                   _menuTile(
@@ -252,9 +312,7 @@ class AppDrawer extends StatelessWidget {
                 width: double.infinity,
                 child: OutlinedButton.icon(
                   style: OutlinedButton.styleFrom(
-                    side: BorderSide(
-                      color: Colors.red.withValues(alpha: 0.25),
-                    ),
+                    side: BorderSide(color: Colors.red.withValues(alpha: 0.25)),
                     foregroundColor: Colors.red.shade700,
                     backgroundColor: Colors.red.shade50,
                     padding: const EdgeInsets.symmetric(vertical: 15),
@@ -263,25 +321,20 @@ class AppDrawer extends StatelessWidget {
                     ),
                   ),
                   onPressed: () {
-  Navigator.pop(context);
-  onLogoutTap?.call();
+                    Navigator.pop(context);
+                    onLogoutTap?.call();
 
-  Navigator.pushAndRemoveUntil(
-    context,
-    MaterialPageRoute(
-      builder: (_) => const WelcomeScreen(),
-    ),
-    (route) => false,
-  );
-},
+                    Navigator.pushAndRemoveUntil(
+                      context,
+                      MaterialPageRoute(builder: (_) => const WelcomeScreen()),
+                      (route) => false,
+                    );
+                  },
 
                   icon: const Icon(Icons.logout_rounded),
                   label: const Text(
                     "Logout",
-                    style: TextStyle(
-                      fontSize: 15,
-                      fontWeight: FontWeight.w700,
-                    ),
+                    style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
                   ),
                 ),
               ),
@@ -331,11 +384,7 @@ class AppDrawer extends StatelessWidget {
                     color: AppColors.royalBlue.withValues(alpha: 0.10),
                     borderRadius: BorderRadius.circular(14),
                   ),
-                  child: Icon(
-                    icon,
-                    color: AppColors.deepBlue,
-                    size: 22,
-                  ),
+                  child: Icon(icon, color: AppColors.deepBlue, size: 22),
                 ),
                 const SizedBox(width: 14),
                 Expanded(

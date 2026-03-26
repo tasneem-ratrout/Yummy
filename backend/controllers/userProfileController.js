@@ -1,5 +1,53 @@
 const UserProfile = require("../models/UserProfile");
 const User = require("../models/User");
+const fs = require("fs/promises");
+const path = require("path");
+const sharp = require("sharp");
+
+const uploadFolder = path.join(__dirname, "../uploads");
+
+const parseListField = (value) => {
+  if (Array.isArray(value)) {
+    return value
+      .map((item) => String(item).trim())
+      .filter((item) => item && item.toLowerCase() !== "none");
+  }
+
+  if (typeof value === "string") {
+    const trimmed = value.trim();
+
+    if (!trimmed) {
+      return [];
+    }
+
+    try {
+      const parsed = JSON.parse(trimmed);
+      if (Array.isArray(parsed)) {
+        return parsed
+          .map((item) => String(item).trim())
+          .filter((item) => item && item.toLowerCase() !== "none");
+      }
+    } catch (_) {
+      // Keep fallback parsing below for comma-separated text.
+    }
+
+    return trimmed
+      .split(",")
+      .map((item) => item.trim())
+      .filter((item) => item && item.toLowerCase() !== "none");
+  }
+
+  if (value === undefined || value === null) {
+    return [];
+  }
+
+  const stringValue = String(value).trim();
+  if (!stringValue || stringValue.toLowerCase() === "none") {
+    return [];
+  }
+
+  return [stringValue];
+};
 
 const createOrUpdateProfile = async (req, res) => {
   try {
@@ -7,6 +55,7 @@ const createOrUpdateProfile = async (req, res) => {
 
     const {
       name,
+      email,
       goal,
       gender,
       date_of_birth,
@@ -31,6 +80,40 @@ const createOrUpdateProfile = async (req, res) => {
       });
     }
 
+    const userUpdates = {
+      name: name.trim(),
+    };
+
+    if (email !== undefined) {
+      const normalizedEmail = String(email).trim().toLowerCase();
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+      if (!normalizedEmail) {
+        return res.status(400).json({
+          message: "email is required",
+        });
+      }
+
+      if (!emailRegex.test(normalizedEmail)) {
+        return res.status(400).json({
+          message: "Please provide a valid email address",
+        });
+      }
+
+      const existingEmailUser = await User.findOne({
+        email: normalizedEmail,
+        _id: { $ne: user_id },
+      });
+
+      if (existingEmailUser) {
+        return res.status(409).json({
+          message: "Email already registered",
+        });
+      }
+
+      userUpdates.email = normalizedEmail;
+    }
+
     // Validate height value - must be between 50cm and 300cm
     if (height_value !== undefined && height_value !== null) {
       const heightNum = Number(height_value);
@@ -51,11 +134,9 @@ const createOrUpdateProfile = async (req, res) => {
       }
     }
 
-    const updatedUser = await User.findByIdAndUpdate(
-      user_id,
-      { name: name.trim() },
-      { new: true }
-    );
+    const updatedUser = await User.findByIdAndUpdate(user_id, userUpdates, {
+      new: true,
+    });
 
     if (!updatedUser) {
       return res.status(404).json({
@@ -68,7 +149,25 @@ const createOrUpdateProfile = async (req, res) => {
     let imagePath = existingProfile?.image || "";
 
     if (req.file) {
-      imagePath = `/uploads/${req.file.filename}`;
+      const jpgFileName = `${Date.now()}-${Math.round(
+        Math.random() * 1e9
+      )}.jpg`;
+      const jpgAbsolutePath = path.join(uploadFolder, jpgFileName);
+
+      try {
+        await fs.mkdir(uploadFolder, { recursive: true });
+
+        await sharp(req.file.buffer)
+          .rotate()
+          .jpeg({ quality: 88, mozjpeg: true })
+          .toFile(jpgAbsolutePath);
+
+        imagePath = `/uploads/${jpgFileName}`;
+      } catch (conversionError) {
+        return res.status(400).json({
+          message: "Failed to process image. Please upload a valid image file.",
+        });
+      }
     }
 
     const profile = await UserProfile.findOneAndUpdate(
@@ -87,16 +186,8 @@ const createOrUpdateProfile = async (req, res) => {
           unit: weight_unit || "kg",
         },
         activity_level: activity_level || "",
-        allergies: Array.isArray(allergies)
-          ? allergies
-          : allergies
-          ? [allergies]
-          : [],
-        medical_conditions: Array.isArray(medical_conditions)
-          ? medical_conditions
-          : medical_conditions
-          ? [medical_conditions]
-          : [],
+        allergies: parseListField(allergies),
+        medical_conditions: parseListField(medical_conditions),
         image: imagePath,
       },
       { new: true, upsert: true }

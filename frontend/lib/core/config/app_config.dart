@@ -1,9 +1,3 @@
-// يجب تشغيل الـ app مع --dart-define
-// أمثلة:
-// flutter run --dart-define=BASE_URL=http://192.168.1.14:5000/api
-// flutter run --dart-define=BASE_URL=https://api.yummy.com/api
-
-// Default للـ development environment (جهازك الفعلي)
 const String _defaultBaseUrl = 'http://192.168.1.14:5000/api';
 
 class AppConfig {

@@ -1,5 +1,7 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:frontend/core/services/auth_service.dart';
+import 'package:frontend/features/home/home_screen.dart';
 import '../auth/welcome_screen.dart';
 import '../../core/theme/app_colors.dart';
 
@@ -12,6 +14,7 @@ class SplashScreen extends StatefulWidget {
 
 class _SplashScreenState extends State<SplashScreen>
     with SingleTickerProviderStateMixin {
+  final AuthService _authService = AuthService();
 
   late AnimationController _controller;
   late Animation<double> _fadeAnimation;
@@ -28,32 +31,37 @@ class _SplashScreenState extends State<SplashScreen>
     );
 
     /// Fade animation
-    _fadeAnimation = Tween<double>(begin: 0, end: 1).animate(
-      CurvedAnimation(
-        parent: _controller,
-        curve: Curves.easeIn,
-      ),
-    );
+    _fadeAnimation = Tween<double>(
+      begin: 0,
+      end: 1,
+    ).animate(CurvedAnimation(parent: _controller, curve: Curves.easeIn));
 
     /// Scale animation
-    _scaleAnimation = Tween<double>(begin: 0.8, end: 1).animate(
-      CurvedAnimation(
-        parent: _controller,
-        curve: Curves.easeOutBack,
-      ),
-    );
+    _scaleAnimation = Tween<double>(
+      begin: 0.8,
+      end: 1,
+    ).animate(CurvedAnimation(parent: _controller, curve: Curves.easeOutBack));
 
     _controller.forward();
 
-    Timer(const Duration(seconds: 5), () {
+    _startNavigationTimer();
+  }
+
+  void _startNavigationTimer() {
+    Timer(const Duration(seconds: 5), () async {
+      final rememberMe = await _authService.getRememberMePreference();
+      final token = await _authService.getToken();
+
+      if (!mounted) return;
 
       Navigator.pushReplacement(
         context,
         MaterialPageRoute(
-          builder: (_) => const WelcomeScreen(),
+          builder: (_) => (rememberMe && token != null)
+              ? const HomeScreen()
+              : const WelcomeScreen(),
         ),
       );
-
     });
   }
 
@@ -65,9 +73,7 @@ class _SplashScreenState extends State<SplashScreen>
 
   @override
   Widget build(BuildContext context) {
-
     return Scaffold(
-
       /// الخلفية navy
       backgroundColor: AppColors.navy,
 
@@ -77,11 +83,7 @@ class _SplashScreenState extends State<SplashScreen>
           child: ScaleTransition(
             scale: _scaleAnimation,
 
-            child: Image.asset(
-              "assets/images/logo_white.png",
-              width: 300,
-            ),
-
+            child: Image.asset("assets/images/logo_white.png", width: 300),
           ),
         ),
       ),

@@ -52,6 +52,17 @@ class _LoginScreenState extends State<LoginScreen>
         TweenSequenceItem(tween: Tween(begin: -4, end: 0), weight: 1),
       ],
     ).animate(CurvedAnimation(parent: _shakeController, curve: Curves.easeOut));
+
+    _loadRememberMePreference();
+  }
+
+  Future<void> _loadRememberMePreference() async {
+    final savedValue = await _authService.getRememberMePreference();
+    if (!mounted) return;
+
+    setState(() {
+      _rememberMe = savedValue;
+    });
   }
 
   @override
@@ -103,7 +114,11 @@ class _LoginScreenState extends State<LoginScreen>
     });
 
     try {
-      final result = await _authService.login(email: email, password: pass);
+      final result = await _authService.login(
+        email: email,
+        password: pass,
+        rememberMe: _rememberMe,
+      );
 
       if (!mounted) return;
 
