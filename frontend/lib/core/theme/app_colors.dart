@@ -30,14 +30,14 @@ class AppColors {
   static const Color red = Color.fromARGB(255, 203, 55, 45);
 
   static const Color caloriesPurple = Color(0xFF7C4DFF);
-static const Color proteinBlue = Color(0xFF5B8DEF);
-static const Color fatOrange = Color(0xFFFF9E57);
-static const Color carbsGreen = Color(0xFF3EB489);
+  static const Color proteinBlue = Color(0xFF5B8DEF);
+  static const Color fatOrange = Color(0xFFFF9E57);
+  static const Color carbsGreen = Color(0xFF3EB489);
 
-static const Color caloriesBg = Color(0xFFF4EEFF);
-static const Color proteinBg = Color(0xFFEFF4FF);
-static const Color fatBg = Color(0xFFFFF4EC);
-static const Color carbsBg = Color(0xFFEFFBF5);
+  static const Color caloriesBg = Color(0xFFF4EEFF);
+  static const Color proteinBg = Color(0xFFEFF4FF);
+  static const Color fatBg = Color(0xFFFFF4EC);
+  static const Color carbsBg = Color(0xFFEFFBF5);
 
   // Shared success palette
   static const Color successPrimary = Color(0xFF4F9A71);
@@ -45,4 +45,31 @@ static const Color carbsBg = Color(0xFFEFFBF5);
   static const Color successBorder = Color(0xFF6CAC84);
 
   static const Color green = successPrimary;
+
+  // Home meal cards
+  static const Color breakfastGradientStart = Color(0xFFF7A7A6);
+  static const Color breakfastGradientEnd = Color(0xFFF3B38A);
+  static const Color lunchGradientStart = Color(0xFF7F97FF);
+  static const Color lunchGradientEnd = Color(0xFF4B5FE2);
+  static const Color snackGradientStart = Color(0xFFFF8FB1);
+  static const Color snackGradientEnd = Color(0xFFFF5F93);
+  static const Color dinnerGradientStart = Color(0xFF6E7CFF);
+  static const Color dinnerGradientEnd = Color(0xFF2D2F9B);
+
+  // Home calorie and macro accents
+  static const Color calorieEatenLine = Color(0xFFE4E1EE);
+  static const Color calorieGoalLine = Color(0xFFF7D8E2);
+  static const Color macroCarbs = Color(0xFF5B9BD5);
+  static const Color macroProtein = Color(0xFFFF6B9D);
+  static const Color macroFat = Color(0xFFE8A000);
+
+  // Calorie ring gradient
+  static const Color calorieRingGradientStart = Color(0xFF3E78C5);
+  static const Color calorieRingGradientEnd = Color(0xFF05346A);
+
+  // Water card palette
+  static const Color waterPrimary = Color(0xFF3A66DB);
+  static const Color waterSecondary = Color(0xFF6FA7F2);
+  static const Color waterBottleBackground = Color(0xFFF3F8FF);
+  static const Color waterBottleBorder = Color(0xFFD8E8FA);
 }

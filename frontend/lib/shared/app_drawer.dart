@@ -8,6 +8,9 @@ import '../features/auth/welcome_screen.dart';
 class AppDrawer extends StatelessWidget {
   final Map<String, dynamic>? user;
   final VoidCallback? onProfileTap;
+  final VoidCallback? onPersonalDetailsTap;
+  final VoidCallback? onOrdersTap;
+  final VoidCallback? onFavoritesTap;
   final VoidCallback? onAboutTap;
   final VoidCallback? onLogoutTap;
 
@@ -15,6 +18,9 @@ class AppDrawer extends StatelessWidget {
     super.key,
     required this.user,
     this.onProfileTap,
+    this.onPersonalDetailsTap,
+    this.onOrdersTap,
+    this.onFavoritesTap,
     this.onAboutTap,
     this.onLogoutTap,
   });
@@ -220,7 +226,7 @@ class AppDrawer extends StatelessWidget {
                   const Padding(
                     padding: EdgeInsets.only(left: 4, bottom: 10),
                     child: Text(
-                      "GENERAL",
+                      "ACCOUNT",
                       style: TextStyle(
                         fontSize: 12,
                         letterSpacing: 1.2,
@@ -232,13 +238,31 @@ class AppDrawer extends StatelessWidget {
 
                   _menuTile(
                     context,
+                    icon: Icons.account_circle_outlined,
+                    title: "My Profile",
+                    subtitle: "View your public profile",
+                    onTap: () {
+                      Navigator.pop(context);
+                      if (onProfileTap != null) {
+                        onProfileTap!.call();
+                        return;
+                      }
+
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text("Profile page later")),
+                      );
+                    },
+                  ),
+
+                  _menuTile(
+                    context,
                     icon: Icons.person_outline_rounded,
                     title: "Personal Details",
                     subtitle: "View and manage your information",
                     onTap: () {
                       Navigator.pop(context);
-                      if (onProfileTap != null) {
-                        onProfileTap!.call();
+                      if (onPersonalDetailsTap != null) {
+                        onPersonalDetailsTap!.call();
                         return;
                       }
 
@@ -251,15 +275,92 @@ class AppDrawer extends StatelessWidget {
                     },
                   ),
 
+                  const SizedBox(height: 18),
+
+                  const Padding(
+                    padding: EdgeInsets.only(left: 4, bottom: 10),
+                    child: Text(
+                      "NUTRITION",
+                      style: TextStyle(
+                        fontSize: 12,
+                        letterSpacing: 1.2,
+                        color: AppColors.blueGray,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ),
+
                   _menuTile(
                     context,
-                    icon: Icons.settings_outlined,
-                    title: "Settings",
-                    subtitle: "App preferences and options",
+                    icon: Icons.restaurant_menu_rounded,
+                    title: "Meal History",
+                    subtitle: "Today and previous dishes by date",
                     onTap: () {
                       Navigator.pop(context);
+
                       ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text("Settings page later")),
+                        const SnackBar(content: Text("page later")),
+                      );
+                    },
+                  ),
+
+                  _menuTile(
+                    context,
+                    icon: Icons.fact_check_outlined,
+                    title: "My Plan",
+                    subtitle: "Body goal, macros and progress",
+                    onTap: () {
+                      Navigator.pop(context);
+
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text("page later")),
+                      );
+                    },
+                  ),
+
+                  _menuTile(
+                    context,
+                    icon: Icons.star_border_rounded,
+                    title: "Favorites",
+                    subtitle: "Your favorite dishes from the app",
+                    onTap: () {
+                      Navigator.pop(context);
+
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text("page later")),
+                      );
+                    },
+                  ),
+
+                  const SizedBox(height: 18),
+
+                  const Padding(
+                    padding: EdgeInsets.only(left: 4, bottom: 10),
+                    child: Text(
+                      "MY ACTIVITY",
+                      style: TextStyle(
+                        fontSize: 12,
+                        letterSpacing: 1.2,
+                        color: AppColors.blueGray,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ),
+
+                  _menuTile(
+                    context,
+                    icon: Icons.receipt_long_outlined,
+                    title: "My Orders",
+                    subtitle: "Track and manage your orders",
+                    onTap: () {
+                      Navigator.pop(context);
+                      if (onOrdersTap != null) {
+                        onOrdersTap!.call();
+                        return;
+                      }
+
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text("Orders page later")),
                       );
                     },
                   ),
@@ -286,23 +387,33 @@ class AppDrawer extends StatelessWidget {
                     subtitle: "Learn more about the app",
                     onTap: () {
                       Navigator.pop(context);
-                      onAboutTap?.call();
-                    },
-                  ),
+                      if (onAboutTap != null) {
+                        onAboutTap!.call();
+                        return;
+                      }
 
-                  _menuTile(
-                    context,
-                    icon: Icons.help_outline_rounded,
-                    title: "Help",
-                    subtitle: "Get support and guidance",
-                    onTap: () {
-                      Navigator.pop(context);
                       ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text("Help page later")),
+                        const SnackBar(content: Text("About page later")),
                       );
                     },
                   ),
                 ],
+              ),
+            ),
+
+            const Padding(
+              padding: EdgeInsets.only(left: 20, right: 20, bottom: 8),
+              child: Align(
+                alignment: Alignment.centerLeft,
+                child: Text(
+                  "ACTION",
+                  style: TextStyle(
+                    fontSize: 12,
+                    letterSpacing: 1.2,
+                    color: AppColors.blueGray,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
               ),
             ),
 
@@ -322,7 +433,11 @@ class AppDrawer extends StatelessWidget {
                   ),
                   onPressed: () {
                     Navigator.pop(context);
-                    onLogoutTap?.call();
+
+                    if (onLogoutTap != null) {
+                      onLogoutTap!.call();
+                      return;
+                    }
 
                     Navigator.pushAndRemoveUntil(
                       context,
@@ -330,7 +445,6 @@ class AppDrawer extends StatelessWidget {
                       (route) => false,
                     );
                   },
-
                   icon: const Icon(Icons.logout_rounded),
                   label: const Text(
                     "Logout",

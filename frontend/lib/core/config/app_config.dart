@@ -1,4 +1,4 @@
-const String _defaultBaseUrl = 'http://192.168.1.14:5000/api';
+const String _defaultBaseUrl = 'http://192.168.1.6:5000/api';
 
 class AppConfig {
   // استخدم BASE_URL من environment variables، وإلا استخدم default URL

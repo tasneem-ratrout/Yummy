@@ -8,6 +8,7 @@ import '../../shared/custom_bottom_nav.dart';
 import '../../shared/app_drawer.dart';
 import '../profile/personal_details_screen.dart';
 import '../auth/welcome_screen.dart';
+import 'dart:math' as math;
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -16,16 +17,35 @@ class HomeScreen extends StatefulWidget {
   State<HomeScreen> createState() => _HomeScreenState();
 }
 
-class _HomeScreenState extends State<HomeScreen> {
+class MealCardData {
+  final String type; // breakfast, lunch, snack, dinner
+  final String title;
+  final String subtitle;
+  final String iconAsset;
+  final List<Color> gradientColors;
+
+  String? mealName;
+  int? calories;
+
+  MealCardData({
+    required this.type,
+    required this.title,
+    required this.subtitle,
+    required this.iconAsset,
+    required this.gradientColors,
+    this.mealName,
+    this.calories,
+  });
+}
+
+class _HomeScreenState extends State<HomeScreen>
+    with SingleTickerProviderStateMixin {
   Map<String, dynamic>? user;
   bool isLoading = true;
 
   // Placeholder values until backend logic is added.
   int fireCounter = 0;
   DateTime _selectedDate = DateUtils.dateOnly(DateTime.now());
-  bool _streakAwardedForToday = false;
-  bool _overCaloriesNotified = false;
-  DateTime _streakStateDate = DateUtils.dateOnly(DateTime.now());
 
   int dailyCalories = 0;
   int dailyProtein = 0;
@@ -37,15 +57,284 @@ class _HomeScreenState extends State<HomeScreen> {
   int consumedFat = 0;
   int consumedCarbs = 0;
 
-  List<Map<String, dynamic>> todaysMeals = [];
-  List<Map<String, dynamic>> mealHistory = [];
+  double dailyWaterGoalL = 3.5;
+  int consumedWaterMl = 0;
+  DateTime? lastDrinkTime;
+
+  late final AnimationController _waveController;
+
+  late List<MealCardData> mealCards;
 
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
+
+  static const TextStyle _sectionTitleStyle = TextStyle(
+    fontSize: 18,
+    fontWeight: FontWeight.w800,
+    color: AppColors.deepBlue,
+  );
 
   @override
   void initState() {
     super.initState();
+
+    _waveController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 2600),
+    )..repeat();
+
+    mealCards = [
+      MealCardData(
+        type: 'breakfast',
+        title: 'Breakfast',
+        subtitle: 'Start your day right',
+        iconAsset: 'assets/icons/breakfast.png',
+        gradientColors: [
+          AppColors.breakfastGradientStart,
+          AppColors.breakfastGradientEnd,
+        ],
+      ),
+      MealCardData(
+        type: 'lunch',
+        title: 'Lunch',
+        subtitle: 'Fuel your afternoon',
+        iconAsset: 'assets/icons/lunch.png',
+        gradientColors: [
+          AppColors.lunchGradientStart,
+          AppColors.lunchGradientEnd,
+        ],
+      ),
+      MealCardData(
+        type: 'snack',
+        title: 'Snack',
+        subtitle: 'Light bite',
+        iconAsset: 'assets/icons/snack.png',
+        gradientColors: [
+          AppColors.snackGradientStart,
+          AppColors.snackGradientEnd,
+        ],
+      ),
+      MealCardData(
+        type: 'dinner',
+        title: 'Dinner',
+        subtitle: 'End your day well',
+        iconAsset: 'assets/icons/dinner.png',
+        gradientColors: [
+          AppColors.dinnerGradientStart,
+          AppColors.dinnerGradientEnd,
+        ],
+      ),
+    ];
     fetchUser();
+  }
+
+  @override
+  void dispose() {
+    _waveController.dispose();
+    super.dispose();
+  }
+
+  int get dailyWaterGoalMl => (dailyWaterGoalL * 1000).round();
+
+  double get _waterProgress {
+    if (dailyWaterGoalMl <= 0) return 0;
+    return (consumedWaterMl / dailyWaterGoalMl).clamp(0.0, 1.0);
+  }
+
+  void _incrementWater() {
+    setState(() {
+      consumedWaterMl += 250;
+      lastDrinkTime = DateTime.now();
+    });
+  }
+
+  void _decrementWater() {
+    setState(() {
+      consumedWaterMl = (consumedWaterMl - 250).clamp(0, 999999);
+      if (consumedWaterMl == 0) {
+        lastDrinkTime = null;
+      }
+    });
+  }
+
+  String _formatLastDrinkTime(DateTime? time) {
+    if (time == null) return '--';
+    final t = TimeOfDay.fromDateTime(time);
+    final hour = t.hourOfPeriod == 0 ? 12 : t.hourOfPeriod;
+    final minute = t.minute.toString().padLeft(2, '0');
+    final period = t.period == DayPeriod.am ? 'AM' : 'PM';
+    return '$hour:$minute $period';
+  }
+
+  String get _waterStatus {
+    if (consumedWaterMl <= 300) return 'Your bottle is empty, refill it';
+    if (consumedWaterMl < dailyWaterGoalMl) return 'Great job, keep going';
+    if (consumedWaterMl == dailyWaterGoalMl) return 'Daily water goal achieved';
+    return 'You exceeded your water goal today';
+  }
+
+  Widget _buildWaterActionButton({
+    required IconData icon,
+    required VoidCallback onTap,
+  }) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(18),
+        child: Container(
+          width: 34,
+          height: 34,
+          decoration: BoxDecoration(
+            color: Colors.white,
+            shape: BoxShape.circle,
+            boxShadow: [
+              BoxShadow(
+                color: AppColors.navy.withOpacity(0.10),
+                blurRadius: 8,
+                offset: const Offset(0, 3),
+              ),
+            ],
+          ),
+          child: Icon(icon, size: 20, color: AppColors.deepBlue),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildWaterBottle() {
+    return SizedBox(
+      width: 76,
+      height: 162,
+      child: Container(
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(42),
+          color: AppColors.babyBlueLight.withOpacity(0.55),
+          border: Border.all(
+            color: AppColors.babyBlueDark.withOpacity(0.24),
+            width: 1.2,
+          ),
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [
+              Colors.white.withOpacity(0.94),
+              AppColors.lightBlue.withOpacity(0.62),
+              AppColors.babyBlueLight.withOpacity(0.46),
+            ],
+            stops: const [0.0, 0.55, 1.0],
+          ),
+        ),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(42),
+          child: Stack(
+            children: [
+              Positioned.fill(
+                child: Container(color: Colors.white.withOpacity(0.52)),
+              ),
+              Positioned.fill(
+                child: Container(
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.topCenter,
+                      end: Alignment.bottomCenter,
+                      colors: [
+                        Colors.white.withOpacity(0.58),
+                        Colors.white.withOpacity(0.14),
+                        Colors.transparent,
+                      ],
+                      stops: const [0, 0.42, 1],
+                    ),
+                  ),
+                ),
+              ),
+              Positioned(
+                left: 8,
+                right: 30,
+                top: 9,
+                bottom: 12,
+                child: Container(
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(28),
+                    gradient: LinearGradient(
+                      begin: Alignment.topCenter,
+                      end: Alignment.bottomCenter,
+                      colors: [
+                        Colors.white.withOpacity(0.55),
+                        Colors.white.withOpacity(0.16),
+                        Colors.white.withOpacity(0.02),
+                      ],
+                      stops: const [0, 0.55, 1],
+                    ),
+                  ),
+                ),
+              ),
+              Positioned(
+                left: 18,
+                right: 40,
+                top: 16,
+                bottom: 24,
+                child: Container(
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(24),
+                    color: Colors.white.withOpacity(0.12),
+                  ),
+                ),
+              ),
+              Align(
+                alignment: Alignment.bottomCenter,
+                child: TweenAnimationBuilder<double>(
+                  tween: Tween<double>(begin: 0, end: _waterProgress),
+                  duration: const Duration(milliseconds: 450),
+                  curve: Curves.easeOutCubic,
+                  builder: (context, animatedProgress, _) {
+                    return FractionallySizedBox(
+                      widthFactor: 1,
+                      heightFactor: animatedProgress,
+                      child: AnimatedBuilder(
+                        animation: _waveController,
+                        builder: (context, __) {
+                          return Stack(
+                            fit: StackFit.expand,
+                            children: [
+                              CustomPaint(
+                                painter: _WaterWavePainter(
+                                  phase: _waveController.value * 2 * math.pi,
+                                  primaryColor: AppColors.waterPrimary,
+                                  secondaryColor: AppColors.waterSecondary,
+                                ),
+                              ),
+                              CustomPaint(
+                                painter: _WaterBubblesPainter(
+                                  phase: _waveController.value * 2 * math.pi,
+                                ),
+                              ),
+                            ],
+                          );
+                        },
+                      ),
+                    );
+                  },
+                ),
+              ),
+              Positioned(
+                left: 0,
+                right: 0,
+                bottom: 24,
+                child: Text(
+                  '${(_waterProgress * 100).round()}%',
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(
+                    fontSize: 22,
+                    fontWeight: FontWeight.w500,
+                    color: Colors.white,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 
   Future<void> fetchUser() async {
@@ -100,6 +389,404 @@ class _HomeScreenState extends State<HomeScreen> {
     }
 
     return age;
+  }
+
+  Widget _buildMealCard(MealCardData meal) {
+    final bool hasMeal =
+        meal.mealName != null && meal.mealName!.trim().isNotEmpty;
+
+    return SizedBox(
+      width: 131,
+      height: 235,
+      child: Stack(
+        clipBehavior: Clip.none,
+        children: [
+          Positioned(
+            left: 0,
+            right: 0,
+            top: 22,
+            bottom: 0,
+            child: Container(
+              padding: const EdgeInsets.fromLTRB(18, 44, 18, 18),
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: meal.gradientColors,
+                ),
+                borderRadius: const BorderRadius.only(
+                  topLeft: Radius.circular(20),
+                  topRight: Radius.circular(70),
+                  bottomLeft: Radius.circular(18),
+                  bottomRight: Radius.circular(18),
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    color: meal.gradientColors.last.withOpacity(0.22),
+                    blurRadius: 16,
+                    offset: const Offset(0, 8),
+                  ),
+                ],
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const SizedBox(height: 10),
+                  Text(
+                    meal.title,
+                    style: const TextStyle(
+                      fontSize: 17,
+                      fontWeight: FontWeight.w800,
+                      color: Colors.white,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    hasMeal ? meal.mealName! : meal.subtitle,
+                    maxLines: 3,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontSize: 12,
+                      height: 1.35,
+                      fontWeight: FontWeight.w500,
+                      color: Colors.white.withOpacity(0.90),
+                    ),
+                  ),
+                  const Spacer(),
+                  if (hasMeal) ...[
+                    Center(
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        crossAxisAlignment: CrossAxisAlignment.end,
+                        children: [
+                          Text(
+                            '${meal.calories ?? 0}',
+                            style: const TextStyle(
+                              fontSize: 28,
+                              fontWeight: FontWeight.w500,
+                              color: Colors.white,
+                              height: 1,
+                              letterSpacing: -0.4,
+                            ),
+                          ),
+                          const SizedBox(width: 6),
+                          Padding(
+                            padding: const EdgeInsets.only(bottom: 0),
+                            child: Text(
+                              'kcal',
+                              style: TextStyle(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w600,
+                                color: Colors.white.withOpacity(0.92),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ] else ...[
+                    Align(
+                      alignment: Alignment.center,
+                      child: GestureDetector(
+                        onTap: () {
+                          _showAddDishDialog(meal);
+                        },
+                        child: Container(
+                          width: 48,
+                          height: 48,
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            shape: BoxShape.circle,
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black.withOpacity(0.08),
+                                blurRadius: 8,
+                                offset: const Offset(0, 3),
+                              ),
+                            ],
+                          ),
+                          child: Icon(
+                            Icons.add_rounded,
+                            size: 25,
+                            color: meal.gradientColors.last,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+          ),
+          Positioned(
+            top: -15,
+            left: -7,
+            child: Container(
+              width: meal.type == 'snack' ? 98 : 92,
+              height: meal.type == 'snack' ? 98 : 92,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: Colors.white.withOpacity(0.13),
+              ),
+            ),
+          ),
+          Positioned(
+            top: meal.type == 'dinner' ? -5 : -15,
+            left: -7,
+            child: SizedBox(
+              width: meal.type == 'snack' ? 96 : 88,
+              height: meal.type == 'snack' ? 96 : 88,
+              child: Image.asset(meal.iconAsset, fit: BoxFit.contain),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildMealsSection() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            const Text('Meals today', style: _sectionTitleStyle),
+            GestureDetector(
+              onTap: () {},
+              child: const Row(
+                children: [
+                  Text(
+                    'Customize',
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                      color: AppColors.navy,
+                    ),
+                  ),
+                  SizedBox(width: 4),
+                  Icon(
+                    Icons.arrow_forward_rounded,
+                    size: 18,
+                    color: AppColors.navy,
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 14),
+        SizedBox(
+          height: 238,
+          child: ListView.separated(
+            scrollDirection: Axis.horizontal,
+            itemCount: mealCards.length,
+            separatorBuilder: (_, __) => const SizedBox(width: 14),
+            itemBuilder: (context, index) {
+              return _buildMealCard(mealCards[index]);
+            },
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildWaterCard() {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.fromLTRB(18, 30, 14, 14),
+      clipBehavior: Clip.antiAlias,
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: const BorderRadius.only(
+          topLeft: Radius.circular(8),
+          topRight: Radius.circular(65),
+          bottomLeft: Radius.circular(8),
+          bottomRight: Radius.circular(8),
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: AppColors.skyBlue.withOpacity(0.15),
+            blurRadius: 16,
+            offset: const Offset(0, 0),
+            spreadRadius: 3,
+          ),
+        ],
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                RichText(
+                  text: TextSpan(
+                    children: [
+                      TextSpan(
+                        text: '$consumedWaterMl',
+                        style: const TextStyle(
+                          fontSize: 34,
+                          fontWeight: FontWeight.w600,
+                          color: AppColors.navy,
+                          height: 1,
+                          letterSpacing: -0.4,
+                        ),
+                      ),
+                      const TextSpan(
+                        text: ' ml',
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.w700,
+                          color: AppColors.navy,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 8),
+                RichText(
+                  text: TextSpan(
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      color: AppColors.deepBlue.withOpacity(0.6),
+                    ),
+                    children: [
+                      const TextSpan(text: 'of daily goal '),
+                      TextSpan(
+                        text: '${dailyWaterGoalL.toStringAsFixed(1)}L',
+                        style: const TextStyle(color: AppColors.mediumBlue),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 10),
+                Container(height: 1, color: AppColors.babyBlueLight),
+                const SizedBox(height: 50),
+                Row(
+                  children: [
+                    Icon(
+                      Icons.access_time_rounded,
+                      size: 15,
+                      color: AppColors.deepBlue.withOpacity(0.42),
+                    ),
+                    const SizedBox(width: 6),
+                    Text(
+                      'Last drink ${_formatLastDrinkTime(lastDrinkTime)}',
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                        color: AppColors.deepBlue.withOpacity(0.52),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 6),
+                Row(
+                  children: [
+                    SizedBox(
+                      width: 14,
+                      height: 14,
+                      child: Image.asset(
+                        'assets/icons/bell pink.png',
+                        fit: BoxFit.contain,
+                        errorBuilder: (_, __, ___) {
+                          return const Icon(
+                            Icons.notifications_none_rounded,
+                            size: 14,
+                            color: AppColors.navy,
+                          );
+                        },
+                      ),
+                    ),
+                    const SizedBox(width: 6),
+                    Expanded(
+                      child: Text(
+                        _waterStatus,
+                        style: const TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w700,
+                          color: Color(0xFFD05E7E),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 8),
+          SizedBox(
+            height: 162,
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                _buildWaterActionButton(
+                  icon: Icons.add_rounded,
+                  onTap: _incrementWater,
+                ),
+                const SizedBox(height: 14),
+                _buildWaterActionButton(
+                  icon: Icons.remove_rounded,
+                  onTap: _decrementWater,
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 8),
+          _buildWaterBottle(),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildWaterHintBox() {
+    return Stack(
+      clipBehavior: Clip.none,
+      children: [
+        Container(
+          width: double.infinity,
+          padding: const EdgeInsets.fromLTRB(54, 18, 16, 18),
+          decoration: BoxDecoration(
+            color: AppColors.lightBlue.withOpacity(0.38),
+            borderRadius: BorderRadius.circular(11),
+            border: Border.all(color: AppColors.babyBlueDark.withOpacity(0.18)),
+          ),
+          child: Text(
+            'Give your body the hydration it needs before lunch to stay energized and support better digestion.',
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.w600,
+              color: AppColors.mediumBlue.withOpacity(0.92),
+              height: 1.28,
+            ),
+          ),
+        ),
+        Positioned(
+          left: 5,
+          top: -18,
+          child: SizedBox(
+            width: 60,
+            height: 60,
+            child: Image.asset(
+              'assets/icons/water.png',
+              fit: BoxFit.contain,
+              errorBuilder: (_, __, ___) {
+                return Icon(
+                  Icons.local_drink_rounded,
+                  size: 24,
+                  color: AppColors.mediumBlue,
+                );
+              },
+            ),
+          ),
+        ),
+      ],
+    );
   }
 
   int calculateCalories(dynamic profile) {
@@ -204,144 +891,6 @@ class _HomeScreenState extends State<HomeScreen> {
     return consumed / total;
   }
 
-  double _indicatorProgress(int consumed, int total) {
-    final progress = getProgress(consumed, total);
-    if (progress < 0) return 0;
-    if (progress > 1) return 1;
-    return progress;
-  }
-
-  String _calorieStatusLabel(double progress) {
-    if (consumedCalories <= 0) {
-      return "Start Strong";
-    }
-    if (dailyCalories > 0 && consumedCalories > dailyCalories) {
-      return "Over Calories";
-    }
-    if (progress >= 0.85) {
-      return "Almost There";
-    }
-    return "On Track";
-  }
-
-  String _formatMealType(String mealType) {
-    final trimmed = mealType.trim();
-    if (trimmed.isEmpty) return "Meal";
-
-    final normalized = trimmed
-        .toLowerCase()
-        .replaceAll(RegExp(r'[_-]+'), ' ')
-        .replaceAll(RegExp(r'\s+'), ' ')
-        .trim();
-
-    if (normalized.isEmpty) return "Meal";
-
-    return normalized
-        .split(' ')
-        .map(
-          (word) => word.isEmpty
-              ? word
-              : '${word[0].toUpperCase()}${word.substring(1)}',
-        )
-        .join(' ');
-  }
-
-  String? _validateMealInput({
-    required String mealName,
-    required String mealType,
-    required String caloriesText,
-    required String proteinText,
-    required String fatText,
-    required String carbsText,
-  }) {
-    if (mealName.trim().isEmpty) {
-      return "Meal name is required";
-    }
-    if (mealType.trim().isEmpty) {
-      return "Meal type is required";
-    }
-    if (caloriesText.trim().isEmpty ||
-        proteinText.trim().isEmpty ||
-        fatText.trim().isEmpty ||
-        carbsText.trim().isEmpty) {
-      return "Please fill all nutrition values";
-    }
-
-    final calories = int.tryParse(caloriesText);
-    final protein = int.tryParse(proteinText);
-    final fat = int.tryParse(fatText);
-    final carbs = int.tryParse(carbsText);
-
-    if (calories == null || protein == null || fat == null || carbs == null) {
-      return "Please enter valid whole numbers";
-    }
-
-    if (calories <= 0) {
-      return "Calories must be greater than 0";
-    }
-    if (protein < 0 || fat < 0 || carbs < 0) {
-      return "Values cannot be negative";
-    }
-    if (calories > 4000) {
-      return "Calories value is unrealistic";
-    }
-    if (protein > 300 || fat > 250 || carbs > 400) {
-      return "Macros value is unrealistic";
-    }
-
-    return null;
-  }
-
-  void _showExceededCaloriesSnackBar() {
-    if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text("You have exceeded your daily calories")),
-    );
-  }
-
-  void _normalizeConsumedTotals() {
-    if (consumedCalories < 0) consumedCalories = 0;
-    if (consumedProtein < 0) consumedProtein = 0;
-    if (consumedFat < 0) consumedFat = 0;
-    if (consumedCarbs < 0) consumedCarbs = 0;
-  }
-
-  bool _applyStreakAndCalorieRules() {
-    final today = DateUtils.dateOnly(DateTime.now());
-    if (!_isSameDay(today, _streakStateDate)) {
-      _streakStateDate = today;
-      _streakAwardedForToday = false;
-      _overCaloriesNotified = false;
-    }
-
-    if (dailyCalories <= 0) {
-      return false;
-    }
-
-    final isOver = consumedCalories > dailyCalories;
-
-    if (isOver) {
-      if (!_overCaloriesNotified && fireCounter > 0) {
-        fireCounter -= 1;
-      }
-      _streakAwardedForToday = false;
-
-      if (!_overCaloriesNotified) {
-        _overCaloriesNotified = true;
-        return true;
-      }
-      return false;
-    }
-
-    if (consumedCalories > 0 && !_streakAwardedForToday) {
-      fireCounter += 1;
-      _streakAwardedForToday = true;
-    }
-
-    _overCaloriesNotified = false;
-    return false;
-  }
-
   String greeting() {
     final hour = DateTime.now().hour;
 
@@ -424,452 +973,422 @@ class _HomeScreenState extends State<HomeScreen> {
     ).showSnackBar(const SnackBar(content: Text("Go to About Us page later")));
   }
 
-  void addMeal(
-    String name,
-    int calories,
-    int protein,
-    int fat,
-    int carbs, {
-    required String mealType,
-  }) {
-    bool shouldShowExceededCaloriesSnack = false;
-
-    setState(() {
-      consumedCalories += calories;
-      consumedProtein += protein;
-      consumedFat += fat;
-      consumedCarbs += carbs;
-
-      todaysMeals.add({
-        "name": name.trim(),
-        "type": _formatMealType(mealType),
-        "calories": calories,
-        "protein": protein,
-        "fat": fat,
-        "carbs": carbs,
-        "time": DateTime.now(),
-      });
-
-      shouldShowExceededCaloriesSnack = _applyStreakAndCalorieRules();
-    });
-
-    if (shouldShowExceededCaloriesSnack) {
-      _showExceededCaloriesSnackBar();
-    }
-  }
-
-  void _updateMeal(
-    int mealIndex, {
-    required String name,
-    required String mealType,
-    required int calories,
-    required int protein,
-    required int fat,
-    required int carbs,
-  }) {
-    if (mealIndex < 0 || mealIndex >= todaysMeals.length) return;
-
-    bool shouldShowExceededCaloriesSnack = false;
-
-    setState(() {
-      final oldMeal = todaysMeals[mealIndex];
-
-      final oldCalories = oldMeal["calories"] as int? ?? 0;
-      final oldProtein = oldMeal["protein"] as int? ?? 0;
-      final oldFat = oldMeal["fat"] as int? ?? 0;
-      final oldCarbs = oldMeal["carbs"] as int? ?? 0;
-      final oldTime = oldMeal["time"] is DateTime
-          ? oldMeal["time"] as DateTime
-          : DateTime.now();
-
-      consumedCalories += calories - oldCalories;
-      consumedProtein += protein - oldProtein;
-      consumedFat += fat - oldFat;
-      consumedCarbs += carbs - oldCarbs;
-      _normalizeConsumedTotals();
-
-      todaysMeals[mealIndex] = {
-        "name": name.trim(),
-        "type": _formatMealType(mealType),
-        "calories": calories,
-        "protein": protein,
-        "fat": fat,
-        "carbs": carbs,
-        "time": oldTime,
-      };
-
-      shouldShowExceededCaloriesSnack = _applyStreakAndCalorieRules();
-    });
-
-    if (shouldShowExceededCaloriesSnack) {
-      _showExceededCaloriesSnackBar();
-    }
-  }
-
-  void _deleteMeal(int mealIndex) {
-    if (mealIndex < 0 || mealIndex >= todaysMeals.length) return;
-
-    bool shouldShowExceededCaloriesSnack = false;
-
-    setState(() {
-      final meal = todaysMeals.removeAt(mealIndex);
-
-      consumedCalories -= meal["calories"] as int? ?? 0;
-      consumedProtein -= meal["protein"] as int? ?? 0;
-      consumedFat -= meal["fat"] as int? ?? 0;
-      consumedCarbs -= meal["carbs"] as int? ?? 0;
-      _normalizeConsumedTotals();
-
-      shouldShowExceededCaloriesSnack = _applyStreakAndCalorieRules();
-    });
-
-    if (shouldShowExceededCaloriesSnack) {
-      _showExceededCaloriesSnackBar();
-    }
-  }
-
-  void _showAddMealDialog({String? mealType, int? editIndex}) {
+  void _showAddDishDialog([MealCardData? meal]) {
     final nameController = TextEditingController();
-    final typeController = TextEditingController();
     final caloriesController = TextEditingController();
     final proteinController = TextEditingController();
     final fatController = TextEditingController();
     final carbsController = TextEditingController();
 
-    if (editIndex != null && editIndex >= 0 && editIndex < todaysMeals.length) {
-      final meal = todaysMeals[editIndex];
-      nameController.text = meal["name"]?.toString() ?? "";
-      typeController.text = meal["type"]?.toString() ?? (mealType ?? "Meal");
-      caloriesController.text = '${meal["calories"] ?? 0}';
-      proteinController.text = '${meal["protein"] ?? 0}';
-      fatController.text = '${meal["fat"] ?? 0}';
-      carbsController.text = '${meal["carbs"] ?? 0}';
-    } else {
-      typeController.text = mealType ?? "Meal";
-    }
-
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(22)),
-        title: Text(editIndex == null ? "Add Meal" : "Edit Meal"),
-        content: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              TextField(
-                controller: nameController,
-                decoration: const InputDecoration(labelText: "Meal Name"),
-              ),
-              TextField(
-                controller: typeController,
-                decoration: const InputDecoration(
-                  labelText: "Meal Type (Breakfast, Lunch, etc.)",
+      builder: (dialogContext) {
+        return AlertDialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+          ),
+          title: Text(meal != null ? 'Add ${meal.title}' : 'Add Dish'),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextField(
+                  controller: nameController,
+                  decoration: const InputDecoration(labelText: 'Dish Name'),
                 ),
-              ),
-              TextField(
-                controller: caloriesController,
-                decoration: const InputDecoration(labelText: "Calories"),
-                keyboardType: TextInputType.number,
-              ),
-              TextField(
-                controller: proteinController,
-                decoration: const InputDecoration(labelText: "Protein (g)"),
-                keyboardType: TextInputType.number,
-              ),
-              TextField(
-                controller: fatController,
-                decoration: const InputDecoration(labelText: "Fat (g)"),
-                keyboardType: TextInputType.number,
-              ),
-              TextField(
-                controller: carbsController,
-                decoration: const InputDecoration(labelText: "Carbs (g)"),
-                keyboardType: TextInputType.number,
-              ),
-            ],
+                TextField(
+                  controller: caloriesController,
+                  keyboardType: TextInputType.number,
+                  decoration: const InputDecoration(labelText: 'Calories'),
+                ),
+                TextField(
+                  controller: proteinController,
+                  keyboardType: TextInputType.number,
+                  decoration: const InputDecoration(labelText: 'Protein (g)'),
+                ),
+                TextField(
+                  controller: fatController,
+                  keyboardType: TextInputType.number,
+                  decoration: const InputDecoration(labelText: 'Fat (g)'),
+                ),
+                TextField(
+                  controller: carbsController,
+                  keyboardType: TextInputType.number,
+                  decoration: const InputDecoration(labelText: 'Carbs (g)'),
+                ),
+              ],
+            ),
           ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text("Cancel"),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              final validationError = _validateMealInput(
-                mealName: nameController.text,
-                mealType: typeController.text,
-                caloriesText: caloriesController.text,
-                proteinText: proteinController.text,
-                fatText: fatController.text,
-                carbsText: carbsController.text,
-              );
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext),
+              child: const Text('Cancel'),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                final dishName = nameController.text.trim();
+                final calories = int.tryParse(caloriesController.text.trim());
+                final protein = int.tryParse(proteinController.text.trim());
+                final fat = int.tryParse(fatController.text.trim());
+                final carbs = int.tryParse(carbsController.text.trim());
 
-              if (validationError != null) {
-                ScaffoldMessenger.of(
-                  this.context,
-                ).showSnackBar(SnackBar(content: Text(validationError)));
-                return;
-              }
+                if (dishName.isEmpty ||
+                    calories == null ||
+                    protein == null ||
+                    fat == null ||
+                    carbs == null ||
+                    calories < 0 ||
+                    protein < 0 ||
+                    fat < 0 ||
+                    carbs < 0) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('Please enter valid values for all fields'),
+                    ),
+                  );
+                  return;
+                }
 
-              final calories = int.parse(caloriesController.text.trim());
-              final protein = int.parse(proteinController.text.trim());
-              final fat = int.parse(fatController.text.trim());
-              final carbs = int.parse(carbsController.text.trim());
+                setState(() {
+                  if (meal != null) {
+                    meal.mealName = dishName;
+                    meal.calories = calories;
+                  }
+                  consumedCalories += calories;
+                  consumedProtein += protein;
+                  consumedFat += fat;
+                  consumedCarbs += carbs;
+                });
 
-              if (editIndex == null) {
-                addMeal(
-                  nameController.text.trim(),
-                  calories,
-                  protein,
-                  fat,
-                  carbs,
-                  mealType: typeController.text.trim(),
+                Navigator.pop(dialogContext);
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(content: Text('Added $dishName successfully')),
                 );
-              } else {
-                _updateMeal(
-                  editIndex,
-                  name: nameController.text.trim(),
-                  mealType: typeController.text.trim(),
-                  calories: calories,
-                  protein: protein,
-                  fat: fat,
-                  carbs: carbs,
-                );
-              }
-
-              Navigator.pop(context);
-            },
-            child: Text(editIndex == null ? "Add" : "Save"),
-          ),
-        ],
-      ),
+              },
+              child: const Text('Add'),
+            ),
+          ],
+        );
+      },
     );
   }
 
   Widget buildCaloriesCard() {
-    final progress = getProgress(consumedCalories, dailyCalories);
-    final indicatorProgress = _indicatorProgress(
-      consumedCalories,
-      dailyCalories,
-    );
-    final isOverCalories =
-        dailyCalories > 0 && consumedCalories > dailyCalories;
-    final calorieDelta = isOverCalories
-        ? consumedCalories - dailyCalories
-        : dailyCalories - consumedCalories;
-    final statusLabel = _calorieStatusLabel(progress);
-    final progressColor = isOverCalories
-        ? const Color(0xFFFF6A3D)
-        : Colors.white;
-    final balanceText = isOverCalories
-        ? "Exceeded by $calorieDelta kcal"
-        : "Remaining $calorieDelta kcal";
-    final today = DateTime.now();
-    final dateLabel =
-        '${_weekdayShort(today.weekday)}, ${today.day}/${today.month}';
+    final int goalCalories = dailyCalories < 0 ? 0 : dailyCalories;
+    final int eatenCalories = consumedCalories < 0 ? 0 : consumedCalories;
+    final int leftCalories = (goalCalories - eatenCalories).clamp(0, 999999);
+
+    final double progress = goalCalories == 0
+        ? 0
+        : (eatenCalories / goalCalories).clamp(0.0, 1.0);
+
+    // Macro calculations
+    final carbsProgress = dailyCarbs == 0
+        ? 0.0
+        : (consumedCarbs / dailyCarbs).clamp(0.0, 1.0);
+    final proteinProgress = dailyProtein == 0
+        ? 0.0
+        : (consumedProtein / dailyProtein).clamp(0.0, 1.0);
+    final fatProgress = dailyFat == 0
+        ? 0.0
+        : (consumedFat / dailyFat).clamp(0.0, 1.0);
+
+    final carbsLeft = (dailyCarbs - consumedCarbs).clamp(0, 999999);
+    final proteinLeft = (dailyProtein - consumedProtein).clamp(0, 999999);
+    final fatLeft = (dailyFat - consumedFat).clamp(0, 999999);
 
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.fromLTRB(18, 18, 18, 16),
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 20),
+      clipBehavior: Clip.antiAlias,
       decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(28),
-        gradient: const LinearGradient(
-          colors: [AppColors.deepBlue, AppColors.royalBlue, AppColors.deepBlue],
-          stops: [0.0, 0.56, 1.0],
-          begin: Alignment.centerLeft,
-          end: Alignment.centerRight,
+        color: Colors.white,
+        borderRadius: const BorderRadius.only(
+          topLeft: Radius.circular(8),
+          topRight: Radius.circular(65),
+          bottomLeft: Radius.circular(8),
+          bottomRight: Radius.circular(8),
         ),
-        border: Border.all(color: Colors.white12),
+        boxShadow: [
+          BoxShadow(
+            color: AppColors.skyBlue.withOpacity(0.15),
+            blurRadius: 16,
+            offset: const Offset(0, 0),
+            spreadRadius: 3,
+          ),
+        ],
       ),
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          // Main calories section
           Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
             children: [
-              Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 10,
-                  vertical: 6,
-                ),
-                decoration: BoxDecoration(
-                  color: Colors.white.withValues(alpha: 0.14),
-                  borderRadius: BorderRadius.circular(999),
-                  border: Border.all(
-                    color: Colors.white.withValues(alpha: 0.20),
-                  ),
-                ),
-                child: Row(
+              Expanded(
+                child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Icon(
-                      Icons.auto_awesome_rounded,
-                      size: 12,
-                      color: Colors.white.withValues(alpha: 0.88),
+                    _buildCalorieRow(
+                      title: "Eaten",
+                      value: eatenCalories,
+                      unit: "Kcal",
+                      lineColor: AppColors.calorieEatenLine,
+                      iconAssetPath: 'assets/icons/grapes.png',
                     ),
-                    const SizedBox(width: 4),
-                    Text(
-                      statusLabel,
-                      style: TextStyle(
-                        fontSize: 11,
-                        fontWeight: FontWeight.w700,
-                        color: Colors.white.withValues(alpha: 0.92),
-                      ),
+                    const SizedBox(height: 18),
+                    _buildCalorieRow(
+                      title: "Calorie Goal",
+                      value: goalCalories,
+                      unit: "Kcal",
+                      lineColor: AppColors.calorieGoalLine,
+                      iconAssetPath: 'assets/icons/fire pink.png',
                     ),
                   ],
                 ),
               ),
-              const Spacer(),
-              Transform.translate(
-                offset: const Offset(8, 0),
-                child: Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 10,
-                    vertical: 6,
-                  ),
-                  decoration: BoxDecoration(
-                    color: Colors.white.withValues(alpha: 0.12),
-                    borderRadius: BorderRadius.circular(999),
-                    border: Border.all(
-                      color: Colors.white.withValues(alpha: 0.22),
+              const SizedBox(width: 18),
+              SizedBox(
+                width: 118,
+                height: 118,
+                child: Stack(
+                  alignment: Alignment.center,
+                  children: [
+                    CustomPaint(
+                      size: const Size(118, 118),
+                      painter: _CalorieRingPainter(
+                        progress: progress,
+                        trackColor: AppColors.babyBlueLight,
+                        progressStartColor: AppColors.calorieRingGradientStart,
+                        progressEndColor: AppColors.calorieRingGradientEnd,
+                      ),
                     ),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(
-                        Icons.calendar_today_rounded,
-                        size: 11,
-                        color: Colors.white.withValues(alpha: 0.82),
-                      ),
-                      const SizedBox(width: 5),
-                      Text(
-                        dateLabel,
-                        style: TextStyle(
-                          fontSize: 11,
-                          fontWeight: FontWeight.w700,
-                          color: Colors.white.withValues(alpha: 0.86),
+                    Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          "$leftCalories",
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            fontSize: 17,
+                            fontWeight: FontWeight.w800,
+                            color: AppColors.navy,
+                            height: 1,
+                          ),
                         ),
-                      ),
-                    ],
-                  ),
+                        const SizedBox(height: 3),
+                        Text(
+                          "Kcal left",
+                          style: TextStyle(
+                            fontSize: 9,
+                            fontWeight: FontWeight.w500,
+                            color: Colors.grey.shade500,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
                 ),
               ),
             ],
           ),
-          const SizedBox(height: 14),
-          Container(
-            height: 1,
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                colors: [
-                  Colors.white.withValues(alpha: 0.04),
-                  Colors.white.withValues(alpha: 0.20),
-                  Colors.white.withValues(alpha: 0.04),
-                ],
-                begin: Alignment.centerLeft,
-                end: Alignment.centerRight,
-              ),
-            ),
-          ),
-          const SizedBox(height: 14),
-          Text(
-            "Today's Goals",
-            style: TextStyle(
-              fontSize: 13,
-              fontWeight: FontWeight.w600,
-              color: Colors.white.withValues(alpha: 0.88),
-            ),
-          ),
-          const SizedBox(height: 8),
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.end,
-            children: [
-              Text(
-                "$dailyCalories",
-                style: const TextStyle(
-                  fontSize: 36,
-                  fontWeight: FontWeight.w900,
-                  color: Colors.white,
-                  height: 1,
-                ),
-              ),
-              const SizedBox(width: 8),
-              Padding(
-                padding: const EdgeInsets.only(bottom: 5),
-                child: Text(
-                  "kcal target",
-                  style: TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w600,
-                    color: Colors.white.withValues(alpha: 0.84),
-                  ),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 14),
+          const SizedBox(height: 20),
+          // Divider line
+          Container(height: 1, color: Colors.grey.shade200),
+          const SizedBox(height: 16),
+          // Macro summary row
           Row(
             children: [
               Expanded(
-                child: Text(
-                  "Consumed $consumedCalories kcal",
-                  style: TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w600,
-                    color: Colors.white.withValues(alpha: 0.92),
-                  ),
+                child: _buildMacroItem(
+                  label: "Carbs",
+                  progress: carbsProgress,
+                  remaining: carbsLeft,
+                  color: AppColors.macroCarbs,
                 ),
               ),
-              const SizedBox(width: 10),
+              const SizedBox(width: 12),
               Expanded(
-                child: Text(
-                  balanceText,
-                  textAlign: TextAlign.right,
-                  style: TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w600,
-                    color: Colors.white.withValues(alpha: 0.88),
-                  ),
+                child: _buildMacroItem(
+                  label: "Protein",
+                  progress: proteinProgress,
+                  remaining: proteinLeft,
+                  color: AppColors.macroProtein,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: _buildMacroItem(
+                  label: "Fat",
+                  progress: fatProgress,
+                  remaining: fatLeft,
+                  color: AppColors.macroFat,
                 ),
               ),
             ],
-          ),
-          const SizedBox(height: 10),
-          ClipRRect(
-            borderRadius: BorderRadius.circular(999),
-            child: SizedBox(
-              height: 10,
-              child: LinearProgressIndicator(
-                value: indicatorProgress,
-                backgroundColor: Colors.white.withValues(alpha: 0.16),
-                valueColor: AlwaysStoppedAnimation<Color>(progressColor),
-              ),
-            ),
           ),
         ],
       ),
     );
   }
 
-  String _weekdayShort(int weekday) {
+  Widget _buildCalorieRow({
+    required String title,
+    required int value,
+    required String unit,
+    required Color lineColor,
+    required String iconAssetPath,
+  }) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.center,
+      children: [
+        Container(
+          width: 3,
+          height: 56,
+          decoration: BoxDecoration(
+            color: lineColor,
+            borderRadius: BorderRadius.circular(20),
+          ),
+        ),
+        const SizedBox(width: 10),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                title,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                  color: Colors.grey.shade500,
+                ),
+              ),
+              const SizedBox(height: 6),
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  SizedBox(
+                    width: 16,
+                    height: 16,
+                    child: Image.asset(iconAssetPath, fit: BoxFit.contain),
+                  ),
+                  const SizedBox(width: 6),
+                  Flexible(
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.end,
+                      children: [
+                        Flexible(
+                          child: Text(
+                            "$value",
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              fontSize: 22,
+                              fontWeight: FontWeight.w800,
+                              color: AppColors.navy,
+                              height: 1,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 4),
+                        Padding(
+                          padding: const EdgeInsets.only(bottom: 2),
+                          child: Text(
+                            unit,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w500,
+                              color: Colors.grey.shade400,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildMacroItem({
+    required String label,
+    required double progress,
+    required int remaining,
+    required Color color,
+  }) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Text(
+          label,
+          style: const TextStyle(
+            fontSize: 14,
+            fontWeight: FontWeight.w700,
+            color: AppColors.deepBlue,
+          ),
+        ),
+        const SizedBox(height: 10),
+        ClipRRect(
+          borderRadius: BorderRadius.circular(5),
+          child: Stack(
+            children: [
+              // Background track
+              Container(height: 7, color: Colors.grey.shade100),
+              // Progress bar with gradient
+              FractionallySizedBox(
+                widthFactor: progress,
+                child: ShaderMask(
+                  shaderCallback: (rect) {
+                    return LinearGradient(
+                      colors: [color.withOpacity(0.4), color],
+                    ).createShader(rect);
+                  },
+                  child: Container(height: 8.5, color: Colors.white),
+                ),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 8),
+        Text(
+          "${remaining}g left",
+          style: TextStyle(
+            fontSize: 12,
+            fontWeight: FontWeight.w500,
+            color: Colors.grey.shade600,
+          ),
+        ),
+      ],
+    );
+  }
+
+  String _weekdayLetter(int weekday) {
     switch (weekday) {
       case DateTime.monday:
-        return 'Mon';
+        return 'Mo';
       case DateTime.tuesday:
-        return 'Tue';
+        return 'Tu';
       case DateTime.wednesday:
-        return 'Wed';
+        return 'We';
       case DateTime.thursday:
-        return 'Thu';
+        return 'Th';
       case DateTime.friday:
-        return 'Fri';
+        return 'Fr';
       case DateTime.saturday:
-        return 'Sat';
+        return 'Sa';
       case DateTime.sunday:
       default:
-        return 'Sun';
+        return 'Su';
     }
   }
 
@@ -918,7 +1437,6 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget _buildDaysStrip() {
     final today = DateUtils.dateOnly(DateTime.now());
     final anchorDate = _selectedDate.isAfter(today) ? today : _selectedDate;
-
     final dates = List.generate(
       7,
       (index) => anchorDate.subtract(Duration(days: 3 - index)),
@@ -933,6 +1451,7 @@ class _HomeScreenState extends State<HomeScreen> {
         itemBuilder: (context, index) {
           final date = dates[index];
           final isActive = _isSameDay(date, _selectedDate);
+          final isToday = _isSameDay(date, today);
 
           return GestureDetector(
             onTap: () {
@@ -940,66 +1459,87 @@ class _HomeScreenState extends State<HomeScreen> {
                 _selectedDate = DateUtils.dateOnly(date);
               });
             },
-            child: AnimatedContainer(
+            child: AnimatedScale(
               duration: const Duration(milliseconds: 220),
-              width: 66,
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
-              decoration: BoxDecoration(
-                color: isActive
-                    ? AppColors.lightBlue.withValues(alpha: 0.35)
-                    : AppColors.white.withValues(alpha: 0.75),
-                borderRadius: BorderRadius.circular(24),
-                border: Border.all(
-                  color: isActive
-                      ? AppColors.navy.withValues(alpha: 0.30)
-                      : AppColors.dark.withValues(alpha: 0.06),
-                  width: 1.2,
+              curve: Curves.easeOutBack,
+              scale: isActive ? 1.0 : 0.95,
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 220),
+                curve: Curves.easeOutCubic,
+                width: 66,
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 8,
+                  vertical: 10,
                 ),
-                boxShadow: [
-                  BoxShadow(
-                    color: AppColors.dark.withValues(alpha: 0.03),
-                    blurRadius: 9,
-                    offset: const Offset(0, 4),
-                  ),
-                ],
-              ),
-              child: Container(
                 decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(20),
-                  gradient: LinearGradient(
-                    begin: Alignment.topCenter,
-                    end: Alignment.bottomCenter,
-                    colors: [
-                      Colors.white.withValues(alpha: isActive ? 0.30 : 0.48),
-                      Colors.white.withValues(alpha: 0.04),
-                    ],
+                  color: isActive
+                      ? AppColors.lightBlue.withValues(alpha: 0.35)
+                      : AppColors.white.withValues(alpha: 0.75),
+                  borderRadius: BorderRadius.circular(24),
+                  border: Border.all(
+                    color: isActive
+                        ? AppColors.navy.withValues(alpha: 0.30)
+                        : AppColors.dark.withValues(alpha: 0.06),
+                    width: 1.2,
                   ),
-                ),
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Text(
-                      _weekdayShort(date.weekday),
-                      style: TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w700,
-                        color: isActive
-                            ? AppColors.navy
-                            : AppColors.dark.withValues(alpha: 0.66),
-                      ),
-                    ),
-                    const SizedBox(height: 6),
-                    Text(
-                      '${date.day}',
-                      style: TextStyle(
-                        fontSize: 20,
-                        fontWeight: FontWeight.w900,
-                        color: isActive
-                            ? AppColors.navy
-                            : AppColors.dark.withValues(alpha: 0.80),
-                      ),
+                  boxShadow: [
+                    BoxShadow(
+                      color: AppColors.dark.withValues(alpha: 0.03),
+                      blurRadius: 9,
+                      offset: const Offset(0, 4),
                     ),
                   ],
+                ),
+                child: Container(
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(20),
+                    gradient: LinearGradient(
+                      begin: Alignment.topCenter,
+                      end: Alignment.bottomCenter,
+                      colors: [
+                        Colors.white.withValues(alpha: isActive ? 0.30 : 0.48),
+                        Colors.white.withValues(alpha: 0.04),
+                      ],
+                    ),
+                  ),
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      if (isToday)
+                        Text(
+                          'today',
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                            color: AppColors.deepBlue.withValues(alpha: 0.34),
+                            letterSpacing: 0.4,
+                          ),
+                        ),
+                      if (isToday) const SizedBox(height: 2),
+                      if (!isToday)
+                        Text(
+                          _weekdayLetter(date.weekday),
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w700,
+                            color: isActive
+                                ? AppColors.navy
+                                : AppColors.dark.withValues(alpha: 0.66),
+                          ),
+                        ),
+                      SizedBox(height: isToday ? 4 : 6),
+                      Text(
+                        '${date.day}',
+                        style: TextStyle(
+                          fontSize: 20,
+                          fontWeight: FontWeight.w900,
+                          color: isActive
+                              ? AppColors.navy
+                              : AppColors.dark.withValues(alpha: 0.80),
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ),
             ),
@@ -1053,104 +1593,6 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
         ],
       ),
-    );
-  }
-
-  Widget _buildMealTypeCard({
-    required String title,
-    required IconData icon,
-    required Color accent,
-  }) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-      decoration: BoxDecoration(
-        color: AppColors.white,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.lightBlue.withValues(alpha: 0.60)),
-      ),
-      child: Row(
-        children: [
-          Container(
-            width: 36,
-            height: 36,
-            decoration: BoxDecoration(
-              color: accent.withValues(alpha: 0.15),
-              borderRadius: BorderRadius.circular(11),
-            ),
-            child: Icon(icon, color: accent, size: 20),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Text(
-              title,
-              style: const TextStyle(
-                fontSize: 14,
-                fontWeight: FontWeight.w700,
-                color: AppColors.deepBlue,
-              ),
-            ),
-          ),
-          SizedBox(
-            height: 32,
-            child: ElevatedButton(
-              onPressed: () => _showAddMealDialog(mealType: title),
-              style: ElevatedButton.styleFrom(
-                elevation: 0,
-                backgroundColor: AppColors.lightBlue.withValues(alpha: 0.22),
-                foregroundColor: AppColors.deepBlue,
-                padding: const EdgeInsets.symmetric(horizontal: 14),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                side: BorderSide(
-                  color: AppColors.lightBlue.withValues(alpha: 0.70),
-                ),
-              ),
-              child: const Text(
-                'Add',
-                style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700),
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildMealQuickAddSection() {
-    return Column(
-      children: [
-        _buildMealTypeCard(
-          title: 'Breakfast',
-          icon: Icons.wb_sunny_outlined,
-          accent: const Color(0xFFFFB85C),
-        ),
-        const SizedBox(height: 10),
-        _buildMealTypeCard(
-          title: 'Lunch',
-          icon: Icons.lunch_dining_outlined,
-          accent: const Color(0xFF63A4FF),
-        ),
-        const SizedBox(height: 10),
-        _buildMealTypeCard(
-          title: 'Dinner',
-          icon: Icons.dinner_dining_outlined,
-          accent: const Color(0xFF7F8CAA),
-        ),
-        const SizedBox(height: 10),
-        _buildMealTypeCard(
-          title: 'Snack',
-          icon: Icons.cookie_outlined,
-          accent: const Color(0xFF55B58A),
-        ),
-        const SizedBox(height: 10),
-        _buildMealTypeCard(
-          title: 'Custom',
-          icon: Icons.add_circle_outline_rounded,
-          accent: const Color(0xFF3F72AF),
-        ),
-      ],
     );
   }
 
@@ -1219,511 +1661,6 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  Widget _legendItem(String label, Color color) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.08),
-        borderRadius: BorderRadius.circular(30),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Container(
-            width: 8,
-            height: 8,
-            decoration: BoxDecoration(color: color, shape: BoxShape.circle),
-          ),
-          const SizedBox(width: 6),
-          Text(
-            label,
-            style: const TextStyle(
-              fontSize: 11,
-              fontWeight: FontWeight.w700,
-              color: AppColors.deepBlue,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget buildCombinedMacrosCard() {
-    final caloriesProgressRaw = getProgress(consumedCalories, dailyCalories);
-    final proteinProgressRaw = getProgress(consumedProtein, dailyProtein);
-    final fatProgressRaw = getProgress(consumedFat, dailyFat);
-    final carbsProgressRaw = getProgress(consumedCarbs, dailyCarbs);
-
-    final caloriesProgress = _indicatorProgress(
-      consumedCalories,
-      dailyCalories,
-    );
-    final proteinProgress = _indicatorProgress(consumedProtein, dailyProtein);
-    final fatProgress = _indicatorProgress(consumedFat, dailyFat);
-    final carbsProgress = _indicatorProgress(consumedCarbs, dailyCarbs);
-
-    final caloriesPercent = (caloriesProgressRaw * 100).round();
-    final proteinPercent = (proteinProgressRaw * 100).round();
-    final fatPercent = (fatProgressRaw * 100).round();
-    final carbsPercent = (carbsProgressRaw * 100).round();
-
-    const caloriesColor = AppColors.babyBlueDark;
-    const proteinColor = AppColors.proteinBlue;
-    const fatColor = AppColors.fatOrange;
-    const carbsColor = AppColors.carbsGreen;
-
-    return AnimatedContainer(
-      duration: const Duration(milliseconds: 250),
-      width: double.infinity,
-      padding: const EdgeInsets.all(18),
-      decoration: BoxDecoration(
-        color: AppColors.white,
-        borderRadius: BorderRadius.circular(28),
-        border: Border.all(color: AppColors.babyBlueLight),
-        boxShadow: [
-          BoxShadow(
-            color: AppColors.navy.withValues(alpha: 0.05),
-            blurRadius: 16,
-            offset: const Offset(0, 8),
-          ),
-        ],
-      ),
-      child: Column(
-        children: [
-          const Row(
-            children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      "Daily Progress",
-                      style: TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.w800,
-                        color: AppColors.deepBlue,
-                      ),
-                    ),
-                    SizedBox(height: 4),
-                    Text(
-                      "Calories and macros overview",
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: AppColors.blueGray,
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              Icon(Icons.insights_rounded, size: 24, color: AppColors.deepBlue),
-            ],
-          ),
-          const SizedBox(height: 16),
-          Column(
-            children: [
-              Row(
-                children: [
-                  Expanded(
-                    child: buildMiniDetailCard(
-                      title: "Calories",
-                      value: "$caloriesPercent%",
-                      subtitle: "$consumedCalories / $dailyCalories kcal",
-                      color: caloriesColor,
-                      bgColor: const Color(0xFFEAF3FF),
-                    ),
-                  ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: buildMiniDetailCard(
-                      title: "Protein",
-                      value: "$proteinPercent%",
-                      subtitle: "$consumedProtein / $dailyProtein g",
-                      color: proteinColor,
-                      bgColor: const Color(0xFFEFF4FF),
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 10),
-              Row(
-                children: [
-                  Expanded(
-                    child: buildMiniDetailCard(
-                      title: "Fat",
-                      value: "$fatPercent%",
-                      subtitle: "$consumedFat / $dailyFat g",
-                      color: fatColor,
-                      bgColor: const Color(0xFFFFF4EC),
-                    ),
-                  ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: buildMiniDetailCard(
-                      title: "Carbs",
-                      value: "$carbsPercent%",
-                      subtitle: "$consumedCarbs / $dailyCarbs g",
-                      color: carbsColor,
-                      bgColor: const Color(0xFFEFFBF5),
-                    ),
-                  ),
-                ],
-              ),
-            ],
-          ),
-          const SizedBox(height: 16),
-          Center(
-            child: SizedBox(
-              width: 170,
-              height: 170,
-              child: Stack(
-                alignment: Alignment.center,
-                children: [
-                  SizedBox(
-                    width: 170,
-                    height: 170,
-                    child: CircularProgressIndicator(
-                      value: caloriesProgress,
-                      strokeWidth: 10,
-                      backgroundColor: caloriesColor.withValues(alpha: 0.12),
-                      valueColor: const AlwaysStoppedAnimation<Color>(
-                        caloriesColor,
-                      ),
-                      strokeCap: StrokeCap.round,
-                    ),
-                  ),
-                  SizedBox(
-                    width: 142,
-                    height: 142,
-                    child: CircularProgressIndicator(
-                      value: proteinProgress,
-                      strokeWidth: 10,
-                      backgroundColor: proteinColor.withValues(alpha: 0.12),
-                      valueColor: const AlwaysStoppedAnimation<Color>(
-                        proteinColor,
-                      ),
-                      strokeCap: StrokeCap.round,
-                    ),
-                  ),
-                  SizedBox(
-                    width: 114,
-                    height: 114,
-                    child: CircularProgressIndicator(
-                      value: fatProgress,
-                      strokeWidth: 10,
-                      backgroundColor: fatColor.withValues(alpha: 0.14),
-                      valueColor: const AlwaysStoppedAnimation<Color>(fatColor),
-                      strokeCap: StrokeCap.round,
-                    ),
-                  ),
-                  SizedBox(
-                    width: 86,
-                    height: 86,
-                    child: CircularProgressIndicator(
-                      value: carbsProgress,
-                      strokeWidth: 10,
-                      backgroundColor: carbsColor.withValues(alpha: 0.14),
-                      valueColor: const AlwaysStoppedAnimation<Color>(
-                        carbsColor,
-                      ),
-                      strokeCap: StrokeCap.round,
-                    ),
-                  ),
-                  Container(
-                    width: 54,
-                    height: 54,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      color: AppColors.background,
-                      boxShadow: [
-                        BoxShadow(
-                          color: AppColors.navy.withValues(alpha: 0.06),
-                          blurRadius: 10,
-                          offset: const Offset(0, 4),
-                        ),
-                      ],
-                    ),
-                    child: const Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Text(
-                          "Daily",
-                          style: TextStyle(
-                            fontSize: 10,
-                            fontWeight: FontWeight.w700,
-                            color: AppColors.deepBlue,
-                            height: 1,
-                          ),
-                        ),
-                        SizedBox(height: 2),
-                        Text(
-                          "Stats",
-                          style: TextStyle(
-                            fontSize: 10,
-                            fontWeight: FontWeight.w800,
-                            color: AppColors.deepBlue,
-                            height: 1,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-          const SizedBox(height: 18),
-          Wrap(
-            spacing: 10,
-            runSpacing: 10,
-            alignment: WrapAlignment.center,
-            children: [
-              _legendItem("Calories", caloriesColor),
-              _legendItem("Protein", proteinColor),
-              _legendItem("Fat", fatColor),
-              _legendItem("Carbs", carbsColor),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
-  Map<String, List<int>> _groupTodayMealsByType() {
-    final groupedMeals = <String, List<int>>{};
-
-    for (int index = 0; index < todaysMeals.length; index++) {
-      final mealType = _formatMealType(
-        todaysMeals[index]["type"]?.toString() ?? "Meal",
-      );
-      groupedMeals.putIfAbsent(mealType, () => <int>[]).add(index);
-    }
-
-    return groupedMeals;
-  }
-
-  List<String> _orderedMealTypes(Iterable<String> mealTypes) {
-    const preferredOrder = ["Breakfast", "Lunch", "Dinner", "Snack"];
-
-    final ordered = <String>[];
-    for (final type in preferredOrder) {
-      if (mealTypes.contains(type)) {
-        ordered.add(type);
-      }
-    }
-
-    final customTypes =
-        mealTypes.where((type) => !preferredOrder.contains(type)).toList()
-          ..sort((a, b) => a.compareTo(b));
-
-    ordered.addAll(customTypes);
-    return ordered;
-  }
-
-  Widget _buildTodayMealsGroupedView() {
-    if (todaysMeals.isEmpty) {
-      return Container(
-        width: double.infinity,
-        padding: const EdgeInsets.all(22),
-        decoration: BoxDecoration(
-          color: AppColors.white,
-          borderRadius: BorderRadius.circular(22),
-          border: Border.all(color: AppColors.babyBlueLight),
-        ),
-        child: const Center(
-          child: Text(
-            "No meals added today",
-            style: TextStyle(
-              color: AppColors.blueGray,
-              fontSize: 15,
-              fontWeight: FontWeight.w500,
-            ),
-          ),
-        ),
-      );
-    }
-
-    final groupedMeals = _groupTodayMealsByType();
-    final sortedTypes = _orderedMealTypes(groupedMeals.keys);
-
-    return Column(
-      children: sortedTypes.map((mealType) {
-        final mealIndexes = groupedMeals[mealType] ?? <int>[];
-
-        return Container(
-          margin: const EdgeInsets.only(bottom: 12),
-          padding: const EdgeInsets.fromLTRB(14, 12, 14, 4),
-          decoration: BoxDecoration(
-            color: AppColors.white,
-            borderRadius: BorderRadius.circular(20),
-            border: Border.all(color: AppColors.babyBlueLight),
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  Text(
-                    mealType,
-                    style: const TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w800,
-                      color: AppColors.deepBlue,
-                    ),
-                  ),
-                  const Spacer(),
-                  Text(
-                    "${mealIndexes.length} item${mealIndexes.length == 1 ? '' : 's'}",
-                    style: const TextStyle(
-                      fontSize: 11,
-                      fontWeight: FontWeight.w600,
-                      color: AppColors.blueGray,
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 8),
-              ...mealIndexes.map((mealIndex) => buildMealCard(mealIndex)),
-            ],
-          ),
-        );
-      }).toList(),
-    );
-  }
-
-  Widget buildMealCard(int mealIndex) {
-    final meal = todaysMeals[mealIndex];
-    final mealType = meal["type"]?.toString() ?? "Meal";
-    final mealTime = meal["time"] is DateTime
-        ? meal["time"] as DateTime
-        : DateTime.now();
-
-    return Container(
-      margin: const EdgeInsets.only(bottom: 10),
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: AppColors.white,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.babyBlueLight),
-      ),
-      child: Row(
-        children: [
-          Container(
-            width: 42,
-            height: 42,
-            decoration: BoxDecoration(
-              color: AppColors.babyBlueLight,
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: const Icon(
-              Icons.restaurant_rounded,
-              color: AppColors.deepBlue,
-              size: 20,
-            ),
-          ),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  meal["name"]?.toString() ?? "Meal",
-                  style: const TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w700,
-                    color: AppColors.deepBlue,
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  mealType,
-                  style: const TextStyle(
-                    fontSize: 11,
-                    fontWeight: FontWeight.w700,
-                    color: AppColors.babyBlueDark,
-                  ),
-                ),
-                const SizedBox(height: 3),
-                Text(
-                  "${meal["calories"]} kcal  •  P:${meal["protein"]}g  •  F:${meal["fat"]}g  •  C:${meal["carbs"]}g",
-                  style: const TextStyle(
-                    fontSize: 11,
-                    color: AppColors.blueGray,
-                    fontWeight: FontWeight.w500,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(width: 8),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.end,
-            children: [
-              Text(
-                "${mealTime.hour}:${mealTime.minute.toString().padLeft(2, '0')}",
-                style: const TextStyle(
-                  fontSize: 11,
-                  color: AppColors.blueGray,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-              const SizedBox(height: 6),
-              Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  InkWell(
-                    onTap: () => _showAddMealDialog(editIndex: mealIndex),
-                    borderRadius: BorderRadius.circular(10),
-                    child: Container(
-                      padding: const EdgeInsets.all(5),
-                      decoration: BoxDecoration(
-                        color: AppColors.babyBlueLight,
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                      child: const Icon(
-                        Icons.edit_outlined,
-                        size: 16,
-                        color: AppColors.deepBlue,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 6),
-                  InkWell(
-                    onTap: () => _deleteMeal(mealIndex),
-                    borderRadius: BorderRadius.circular(10),
-                    child: Container(
-                      padding: const EdgeInsets.all(5),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFFFFF1EE),
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                      child: const Icon(
-                        Icons.delete_outline_rounded,
-                        size: 16,
-                        color: Color(0xFFE15B3D),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget buildSectionTitle(String title) {
-    return Text(
-      title,
-      style: const TextStyle(
-        fontSize: 18,
-        fontWeight: FontWeight.w800,
-        color: AppColors.deepBlue,
-      ),
-    );
-  }
-
   Widget _buildChatPlaceholderButton() {
     return Tooltip(
       message: 'Chat (Coming Soon)',
@@ -1755,6 +1692,20 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
+  Widget _buildAddDishButton() {
+    return FloatingActionButton.extended(
+      onPressed: _showAddDishDialog,
+      backgroundColor: AppColors.navy,
+      foregroundColor: Colors.white,
+      elevation: 7,
+      icon: const Icon(Icons.add_rounded, size: 20),
+      label: const Text(
+        'Add Dish',
+        style: TextStyle(fontWeight: FontWeight.w700),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     if (isLoading) {
@@ -1772,12 +1723,7 @@ class _HomeScreenState extends State<HomeScreen> {
     return Scaffold(
       key: _scaffoldKey,
       backgroundColor: AppColors.background,
-      endDrawer: AppDrawer(
-        user: user,
-        onProfileTap: _goToProfile,
-        onAboutTap: _goToAboutUs,
-        onLogoutTap: _logout,
-      ),
+      endDrawer: AppDrawer(user: user, onLogoutTap: _logout),
       body: SafeArea(
         child: Padding(
           padding: const EdgeInsets.fromLTRB(20, 20, 20, 0),
@@ -1892,86 +1838,52 @@ class _HomeScreenState extends State<HomeScreen> {
                           ),
                         ),
                         const SizedBox(height: 22),
-                        buildCaloriesCard(),
-                        const SizedBox(height: 22),
-                        buildSectionTitle("Daily Macros"),
-                        const SizedBox(height: 14),
-                        buildCombinedMacrosCard(),
-                        const SizedBox(height: 14),
-                        _buildMealQuickAddSection(),
-                        const SizedBox(height: 26),
-                        buildSectionTitle("Today's Meals"),
-                        const SizedBox(height: 14),
-                        _buildTodayMealsGroupedView(),
-                        const SizedBox(height: 26),
-                        buildSectionTitle("Meal History"),
-                        const SizedBox(height: 14),
-                        mealHistory.isEmpty
-                            ? Container(
-                                width: double.infinity,
-                                padding: const EdgeInsets.all(22),
-                                decoration: BoxDecoration(
-                                  color: AppColors.white,
-                                  borderRadius: BorderRadius.circular(22),
-                                  border: Border.all(
-                                    color: AppColors.babyBlueLight,
-                                  ),
-                                ),
-                                child: const Center(
-                                  child: Text(
-                                    "No meal history",
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            const Text(
+                              "Your Progress",
+                              style: _sectionTitleStyle,
+                            ),
+                            GestureDetector(
+                              onTap: () {
+                                // TODO: Navigate to details page
+                              },
+                              child: Row(
+                                children: [
+                                  const Text(
+                                    "Details",
                                     style: TextStyle(
-                                      color: AppColors.blueGray,
-                                      fontSize: 15,
-                                      fontWeight: FontWeight.w500,
+                                      fontSize: 13,
+                                      fontWeight: FontWeight.w600,
+                                      color: AppColors.navy,
                                     ),
                                   ),
-                                ),
-                              )
-                            : Column(
-                                children: mealHistory.map((day) {
-                                  return Container(
-                                    margin: const EdgeInsets.only(bottom: 10),
-                                    padding: const EdgeInsets.all(16),
-                                    decoration: BoxDecoration(
-                                      color: AppColors.white,
-                                      borderRadius: BorderRadius.circular(18),
-                                      border: Border.all(
-                                        color: AppColors.babyBlueLight,
-                                      ),
-                                    ),
-                                    child: Column(
-                                      crossAxisAlignment:
-                                          CrossAxisAlignment.start,
-                                      children: [
-                                        Text(
-                                          day["date"],
-                                          style: const TextStyle(
-                                            fontSize: 16,
-                                            fontWeight: FontWeight.w700,
-                                            color: AppColors.deepBlue,
-                                          ),
-                                        ),
-                                        const SizedBox(height: 8),
-                                        ...day["meals"].map<Widget>((meal) {
-                                          return Padding(
-                                            padding: const EdgeInsets.only(
-                                              bottom: 4,
-                                            ),
-                                            child: Text(
-                                              "${meal["name"]} - ${meal["calories"]} kcal",
-                                              style: const TextStyle(
-                                                fontSize: 14,
-                                                color: AppColors.blueGray,
-                                              ),
-                                            ),
-                                          );
-                                        }).toList(),
-                                      ],
-                                    ),
-                                  );
-                                }).toList(),
+                                  const SizedBox(width: 4),
+                                  const Icon(
+                                    Icons.arrow_forward_rounded,
+                                    size: 16,
+                                    color: AppColors.navy,
+                                  ),
+                                ],
                               ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 12),
+                        buildCaloriesCard(),
+                        const SizedBox(height: 24),
+                        _buildMealsSection(),
+                        const SizedBox(height: 24),
+                        const Align(
+                          alignment: Alignment.centerLeft,
+                          child: Text('water', style: _sectionTitleStyle),
+                        ),
+                        const SizedBox(height: 12),
+                        _buildWaterCard(),
+                        const SizedBox(height: 20),
+                        _buildWaterHintBox(),
+
                         const SizedBox(height: 100),
                       ],
                     ),
@@ -1986,5 +1898,183 @@ class _HomeScreenState extends State<HomeScreen> {
       floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
       bottomNavigationBar: const CustomBottomNav(currentIndex: 0),
     );
+  }
+}
+
+class _CalorieRingPainter extends CustomPainter {
+  final double progress;
+  final Color trackColor;
+  final Color progressStartColor;
+  final Color progressEndColor;
+
+  _CalorieRingPainter({
+    required this.progress,
+    required this.trackColor,
+    required this.progressStartColor,
+    required this.progressEndColor,
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    const double trackStrokeWidth = 8.0;
+    const double progressStrokeWidth = 12.0;
+    const double glowStrokeWidth = 11.0;
+    const double blurSigma = 8.0;
+
+    final Offset center = Offset(size.width / 2, size.height / 2);
+    final double maxStroke = math.max(glowStrokeWidth, progressStrokeWidth);
+    final double radius =
+        (math.min(size.width, size.height) / 2) - (maxStroke / 2);
+
+    final Rect rect = Rect.fromCircle(center: center, radius: radius);
+
+    const double startAngle = -math.pi / 2;
+    final double safeProgress = progress.clamp(0.0, 1.0);
+    final double sweepAngle = 2 * math.pi * safeProgress;
+
+    final Paint trackPaint = Paint()
+      ..color = trackColor
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = trackStrokeWidth
+      ..strokeCap = StrokeCap.round;
+
+    final Paint progressPaint = Paint()
+      ..shader = LinearGradient(
+        begin: Alignment.topLeft,
+        end: Alignment.bottomRight,
+        colors: [progressStartColor, progressEndColor],
+      ).createShader(rect)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = progressStrokeWidth
+      ..strokeCap = StrokeCap.round;
+
+    canvas.drawArc(rect, 0, 2 * math.pi, false, trackPaint);
+
+    if (safeProgress > 0) {
+      final Paint glowPaint = Paint()
+        ..color = progressEndColor.withOpacity(0.28)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = glowStrokeWidth
+        ..strokeCap = StrokeCap.round
+        ..maskFilter = const MaskFilter.blur(BlurStyle.outer, blurSigma);
+
+      canvas.drawArc(rect, startAngle, sweepAngle, false, glowPaint);
+      canvas.drawArc(rect, startAngle, sweepAngle, false, progressPaint);
+
+      final double endAngle = startAngle + sweepAngle;
+      final Offset dotCenter = Offset(
+        center.dx + radius * math.cos(endAngle),
+        center.dy + radius * math.sin(endAngle),
+      );
+
+      final Paint dotPaint = Paint()..color = progressEndColor;
+      canvas.drawCircle(dotCenter, progressStrokeWidth * 0.5, dotPaint);
+
+      final Paint innerDotPaint = Paint()..color = Colors.white;
+      canvas.drawCircle(dotCenter, progressStrokeWidth * 0.25, innerDotPaint);
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _CalorieRingPainter oldDelegate) {
+    return oldDelegate.progress != progress ||
+        oldDelegate.trackColor != trackColor ||
+        oldDelegate.progressStartColor != progressStartColor ||
+        oldDelegate.progressEndColor != progressEndColor;
+  }
+}
+
+class _WaterWavePainter extends CustomPainter {
+  final double phase;
+  final Color primaryColor;
+  final Color secondaryColor;
+
+  _WaterWavePainter({
+    required this.phase,
+    required this.primaryColor,
+    required this.secondaryColor,
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    if (size.width <= 0 || size.height <= 0) {
+      return;
+    }
+
+    final double amplitude = math.min(7, size.height * 0.10);
+    final double baseY = size.height * 0.32;
+    final double safeWidth = size.width == 0 ? 1 : size.width;
+
+    final Paint backPaint = Paint()
+      ..color = secondaryColor.withOpacity(0.75)
+      ..style = PaintingStyle.fill;
+    final Paint frontPaint = Paint()
+      ..color = primaryColor.withOpacity(0.93)
+      ..style = PaintingStyle.fill;
+
+    final Path backWave = Path()..moveTo(0, size.height);
+    for (double x = 0; x <= size.width; x++) {
+      final double y =
+          baseY + amplitude * math.sin((x / safeWidth) * 2 * math.pi + phase);
+      backWave.lineTo(x, y);
+    }
+    backWave
+      ..lineTo(size.width, size.height)
+      ..close();
+
+    final Path frontWave = Path()..moveTo(0, size.height);
+    for (double x = 0; x <= size.width; x++) {
+      final double y =
+          baseY +
+          amplitude *
+              0.65 *
+              math.sin((x / safeWidth) * 2 * math.pi - (phase * 1.1));
+      frontWave.lineTo(x, y);
+    }
+    frontWave
+      ..lineTo(size.width, size.height)
+      ..close();
+
+    canvas.drawPath(backWave, backPaint);
+    canvas.drawPath(frontWave, frontPaint);
+  }
+
+  @override
+  bool shouldRepaint(covariant _WaterWavePainter oldDelegate) {
+    return oldDelegate.phase != phase ||
+        oldDelegate.primaryColor != primaryColor ||
+        oldDelegate.secondaryColor != secondaryColor;
+  }
+}
+
+class _WaterBubblesPainter extends CustomPainter {
+  final double phase;
+
+  _WaterBubblesPainter({required this.phase});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    if (size.width <= 0 || size.height <= 0) return;
+
+    final Paint paint = Paint()
+      ..color = Colors.white.withOpacity(0.35)
+      ..style = PaintingStyle.fill;
+
+    final List<double> bubbleXFactors = [0.18, 0.33, 0.52, 0.71, 0.84];
+    final List<double> bubbleBaseY = [0.84, 0.68, 0.92, 0.76, 0.60];
+    final List<double> bubbleRadius = [1.6, 2.2, 1.8, 2.6, 1.4];
+
+    for (int i = 0; i < bubbleXFactors.length; i++) {
+      final double x = size.width * bubbleXFactors[i];
+      final double drift = math.sin(phase + (i * 0.9)) * 1.2;
+      final double lift = math.cos(phase * 0.85 + i) * 2.4;
+      final double y = (size.height * bubbleBaseY[i]) - lift;
+      canvas.drawCircle(Offset(x + drift, y), bubbleRadius[i], paint);
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _WaterBubblesPainter oldDelegate) {
+    return oldDelegate.phase != phase;
   }
 }
