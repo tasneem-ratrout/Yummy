@@ -8,6 +8,7 @@ import '../../shared/custom_bottom_nav.dart';
 import '../../shared/app_drawer.dart';
 import '../profile/personal_details_screen.dart';
 import '../auth/welcome_screen.dart';
+import '../add_meal/add_meal_manual_screen.dart';
 import 'dart:math' as math;
 
 class HomeScreen extends StatefulWidget {
@@ -140,9 +141,20 @@ class _HomeScreenState extends State<HomeScreen>
     return (consumedWaterMl / dailyWaterGoalMl).clamp(0.0, 1.0);
   }
 
+  double get _waterBottleVisualProgress {
+    // Keep the measured progress unchanged, but avoid a fully empty-looking bottle.
+    if (_waterProgress == 0) return 0.15;
+    return _waterProgress;
+  }
+
   void _incrementWater() {
+    _addWaterBy(250);
+  }
+
+  void _addWaterBy(int amountMl) {
+    if (amountMl <= 0) return;
     setState(() {
-      consumedWaterMl += 250;
+      consumedWaterMl += amountMl;
       lastDrinkTime = DateTime.now();
     });
   }
@@ -283,7 +295,10 @@ class _HomeScreenState extends State<HomeScreen>
               Align(
                 alignment: Alignment.bottomCenter,
                 child: TweenAnimationBuilder<double>(
-                  tween: Tween<double>(begin: 0, end: _waterProgress),
+                  tween: Tween<double>(
+                    begin: 0,
+                    end: _waterBottleVisualProgress,
+                  ),
                   duration: const Duration(milliseconds: 450),
                   curve: Curves.easeOutCubic,
                   builder: (context, animatedProgress, _) {
@@ -394,103 +409,148 @@ class _HomeScreenState extends State<HomeScreen>
   Widget _buildMealCard(MealCardData meal) {
     final bool hasMeal =
         meal.mealName != null && meal.mealName!.trim().isNotEmpty;
+    final int targetCalories = _mealTargetCalories(meal);
+    final int mealCalories = meal.calories ?? 0;
+    final int leftCalories = _mealLeftCalories(meal);
+    final bool isCompleted =
+        hasMeal && targetCalories > 0 && mealCalories >= targetCalories;
+    final bool isPartial = hasMeal && !isCompleted;
 
-    return SizedBox(
-      width: 131,
-      height: 235,
-      child: Stack(
-        clipBehavior: Clip.none,
-        children: [
-          Positioned(
-            left: 0,
-            right: 0,
-            top: 22,
-            bottom: 0,
-            child: Container(
-              padding: const EdgeInsets.fromLTRB(18, 44, 18, 18),
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                  colors: meal.gradientColors,
-                ),
-                borderRadius: const BorderRadius.only(
-                  topLeft: Radius.circular(20),
-                  topRight: Radius.circular(70),
-                  bottomLeft: Radius.circular(18),
-                  bottomRight: Radius.circular(18),
-                ),
-                boxShadow: [
-                  BoxShadow(
-                    color: meal.gradientColors.last.withOpacity(0.22),
-                    blurRadius: 16,
-                    offset: const Offset(0, 8),
+    return GestureDetector(
+      onTap: () => _goToAddMealScreen(meal),
+      child: SizedBox(
+        width: 131,
+        height: 235,
+        child: Stack(
+          clipBehavior: Clip.none,
+          children: [
+            Positioned(
+              left: 0,
+              right: 0,
+              top: 22,
+              bottom: 0,
+              child: Container(
+                padding: const EdgeInsets.fromLTRB(18, 44, 18, 18),
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    colors: meal.gradientColors,
                   ),
-                ],
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const SizedBox(height: 10),
-                  Text(
-                    meal.title,
-                    style: const TextStyle(
-                      fontSize: 17,
-                      fontWeight: FontWeight.w800,
-                      color: Colors.white,
+                  borderRadius: const BorderRadius.only(
+                    topLeft: Radius.circular(20),
+                    topRight: Radius.circular(70),
+                    bottomLeft: Radius.circular(18),
+                    bottomRight: Radius.circular(18),
+                  ),
+                  boxShadow: [
+                    BoxShadow(
+                      color: meal.gradientColors.last.withOpacity(0.22),
+                      blurRadius: 16,
+                      offset: const Offset(0, 8),
                     ),
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    hasMeal ? meal.mealName! : meal.subtitle,
-                    maxLines: 3,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      fontSize: 12,
-                      height: 1.35,
-                      fontWeight: FontWeight.w500,
-                      color: Colors.white.withOpacity(0.90),
+                  ],
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const SizedBox(height: 10),
+                    Text(
+                      meal.title,
+                      style: const TextStyle(
+                        fontSize: 17,
+                        fontWeight: FontWeight.w800,
+                        color: Colors.white,
+                      ),
                     ),
-                  ),
-                  const Spacer(),
-                  if (hasMeal) ...[
-                    Center(
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        crossAxisAlignment: CrossAxisAlignment.end,
+                    const SizedBox(height: 10),
+                    if (!hasMeal)
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            '${meal.calories ?? 0}',
-                            style: const TextStyle(
-                              fontSize: 28,
-                              fontWeight: FontWeight.w500,
-                              color: Colors.white,
-                              height: 1,
-                              letterSpacing: -0.4,
+                            'Recommended',
+                            style: TextStyle(
+                              fontSize: 10,
+                              fontWeight: FontWeight.w400,
+                              color: Colors.white.withOpacity(0.90),
                             ),
                           ),
-                          const SizedBox(width: 6),
-                          Padding(
-                            padding: const EdgeInsets.only(bottom: 0),
-                            child: Text(
-                              'kcal',
-                              style: TextStyle(
-                                fontSize: 13,
-                                fontWeight: FontWeight.w600,
-                                color: Colors.white.withOpacity(0.92),
-                              ),
+                          const SizedBox(height: 2),
+                          Text(
+                            '$targetCalories kcal',
+                            style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w700,
+                              color: Colors.white.withOpacity(0.98),
                             ),
                           ),
                         ],
                       ),
-                    ),
-                  ] else ...[
-                    Align(
-                      alignment: Alignment.center,
-                      child: GestureDetector(
-                        onTap: () {
-                          _showAddDishDialog(meal);
-                        },
+                    if (!hasMeal) const SizedBox(height: 8),
+                    if (isPartial)
+                      Text(
+                        meal.mealName!,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                          color: Colors.white.withOpacity(0.95),
+                        ),
+                      ),
+                    if (isPartial) const SizedBox(height: 4),
+                    if (isPartial)
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Remaining',
+                            style: TextStyle(
+                              fontSize: 10,
+                              fontWeight: FontWeight.w400,
+                              color: Colors.white.withOpacity(0.90),
+                            ),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            '$leftCalories kcal',
+                            style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w700,
+                              color: Colors.white.withOpacity(0.98),
+                            ),
+                          ),
+                        ],
+                      ),
+                    if (isCompleted)
+                      Text(
+                        meal.mealName!,
+                        maxLines: 4,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                          color: Colors.white.withOpacity(0.95),
+                          height: 1.25,
+                        ),
+                      ),
+                    const Spacer(),
+                    if (isCompleted)
+                      Center(
+                        child: Text(
+                          '$mealCalories kcal',
+                          style: TextStyle(
+                            fontSize: 22,
+                            fontWeight: FontWeight.w800,
+                            color: Colors.white.withOpacity(0.98),
+                            letterSpacing: -0.2,
+                          ),
+                        ),
+                      )
+                    else
+                      Align(
+                        alignment: Alignment.center,
                         child: Container(
                           width: 48,
                           height: 48,
@@ -512,34 +572,33 @@ class _HomeScreenState extends State<HomeScreen>
                           ),
                         ),
                       ),
-                    ),
                   ],
-                ],
+                ),
               ),
             ),
-          ),
-          Positioned(
-            top: -15,
-            left: -7,
-            child: Container(
-              width: meal.type == 'snack' ? 98 : 92,
-              height: meal.type == 'snack' ? 98 : 92,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: Colors.white.withOpacity(0.13),
+            Positioned(
+              top: -15,
+              left: -7,
+              child: Container(
+                width: meal.type == 'snack' ? 98 : 92,
+                height: meal.type == 'snack' ? 98 : 92,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: Colors.white.withOpacity(0.13),
+                ),
               ),
             ),
-          ),
-          Positioned(
-            top: meal.type == 'dinner' ? -5 : -15,
-            left: -7,
-            child: SizedBox(
-              width: meal.type == 'snack' ? 96 : 88,
-              height: meal.type == 'snack' ? 96 : 88,
-              child: Image.asset(meal.iconAsset, fit: BoxFit.contain),
+            Positioned(
+              top: meal.type == 'dinner' ? -5 : -15,
+              left: -7,
+              child: SizedBox(
+                width: meal.type == 'snack' ? 96 : 88,
+                height: meal.type == 'snack' ? 96 : 88,
+                child: Image.asset(meal.iconAsset, fit: BoxFit.contain),
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -891,6 +950,71 @@ class _HomeScreenState extends State<HomeScreen>
     return consumed / total;
   }
 
+  Map<String, double> _mealDistributionForGoal(String? goal) {
+    switch (goal) {
+      case "lose_weight":
+        return {
+          "breakfast": 0.30,
+          "lunch": 0.40,
+          "dinner": 0.20,
+          "snack": 0.10,
+        };
+      case "gain_weight":
+        return {
+          "breakfast": 0.25,
+          "lunch": 0.35,
+          "dinner": 0.25,
+          "snack": 0.15,
+        };
+      case "stay_healthy":
+      default:
+        return {
+          "breakfast": 0.30,
+          "lunch": 0.35,
+          "dinner": 0.25,
+          "snack": 0.10,
+        };
+    }
+  }
+
+  double _mealRatio(String mealType) {
+    final goal = user?["profile"]?["goal"]?.toString();
+    final distribution = _mealDistributionForGoal(goal);
+    return distribution[mealType] ?? 0.25;
+  }
+
+  int _mealTargetCalories(MealCardData meal) {
+    if (dailyCalories <= 0) return 0;
+    return (dailyCalories * _mealRatio(meal.type)).round();
+  }
+
+  int _mealLeftCalories(MealCardData meal) {
+    final target = _mealTargetCalories(meal);
+    final consumed = (meal.calories ?? 0).clamp(0, 999999);
+    final left = target - consumed;
+    return left < 0 ? 0 : left;
+  }
+
+  int _mealLeftPercent(MealCardData meal) {
+    final target = _mealTargetCalories(meal);
+    if (target <= 0) return 0;
+    return ((_mealLeftCalories(meal) / target) * 100).round().clamp(0, 100);
+  }
+
+  void _goToAddMealScreen(MealCardData meal) {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => AddMealManualScreen(
+          mealType: meal.type,
+          mealTitle: meal.title,
+          targetCalories: _mealTargetCalories(meal),
+          consumedCalories: (meal.calories ?? 0).clamp(0, 999999),
+          mealImageAsset: meal.iconAsset,
+        ),
+      ),
+    );
+  }
+
   String greeting() {
     final hour = DateTime.now().hour;
 
@@ -1051,8 +1175,12 @@ class _HomeScreenState extends State<HomeScreen>
 
                 setState(() {
                   if (meal != null) {
-                    meal.mealName = dishName;
-                    meal.calories = calories;
+                    if ((meal.mealName ?? '').trim().isEmpty) {
+                      meal.mealName = dishName;
+                    } else {
+                      meal.mealName = '${meal.mealName}\n$dishName';
+                    }
+                    meal.calories = (meal.calories ?? 0) + calories;
                   }
                   consumedCalories += calories;
                   consumedProtein += protein;
@@ -1722,9 +1850,11 @@ class _HomeScreenState extends State<HomeScreen>
 
     return Scaffold(
       key: _scaffoldKey,
+      extendBody: true,
       backgroundColor: AppColors.background,
       endDrawer: AppDrawer(user: user, onLogoutTap: _logout),
       body: SafeArea(
+        bottom: false,
         child: Padding(
           padding: const EdgeInsets.fromLTRB(20, 20, 20, 0),
           child: Column(
@@ -1883,6 +2013,7 @@ class _HomeScreenState extends State<HomeScreen>
                         _buildWaterCard(),
                         const SizedBox(height: 20),
                         _buildWaterHintBox(),
+                        const SizedBox(height: 50),
 
                         const SizedBox(height: 100),
                       ],
@@ -1896,7 +2027,17 @@ class _HomeScreenState extends State<HomeScreen>
       ),
       floatingActionButton: _buildChatPlaceholderButton(),
       floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
-      bottomNavigationBar: const CustomBottomNav(currentIndex: 0),
+      bottomNavigationBar: CustomBottomNav(
+        currentIndex: 0,
+        dailyCalories: dailyCalories,
+        goal: user?["profile"]?["goal"]?.toString(),
+        mealConsumedCalories: {
+          for (final meal in mealCards) meal.type: meal.calories ?? 0,
+        },
+        consumedWaterMl: consumedWaterMl,
+        dailyWaterGoalMl: dailyWaterGoalMl,
+        onAddWaterTap: _addWaterBy,
+      ),
     );
   }
 }

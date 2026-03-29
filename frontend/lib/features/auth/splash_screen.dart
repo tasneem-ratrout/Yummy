@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:lottie/lottie.dart';
 import 'package:frontend/core/services/auth_service.dart';
 import 'package:frontend/features/home/home_screen.dart';
 import '../auth/welcome_screen.dart';
@@ -82,8 +83,18 @@ class _SplashScreenState extends State<SplashScreen>
           opacity: _fadeAnimation,
           child: ScaleTransition(
             scale: _scaleAnimation,
-
-            child: Image.asset("assets/images/logo_white.png", width: 300),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Image.asset("assets/images/logo_white.png", width: 300),
+               
+                SizedBox(
+                  width: 310,
+                  height: 110,
+                  child: Lottie.asset("assets/lottie/Loading Dots Blue.json"),
+                ),
+              ],
+            ),
           ),
         ),
       ),
