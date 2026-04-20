@@ -113,20 +113,7 @@ class _MyFoodScreenPanelState extends State<MyFoodScreenPanel> {
     }
   }
 
-  IconData _mealIcon(String mealType) {
-    switch (mealType.toLowerCase()) {
-      case 'breakfast':
-        return Icons.free_breakfast_rounded;
-      case 'lunch':
-        return Icons.lunch_dining_rounded;
-      case 'dinner':
-        return Icons.dinner_dining_rounded;
-      case 'snack':
-        return Icons.fastfood_rounded;
-      default:
-        return Icons.restaurant_rounded;
-    }
-  }
+  
 
   Color _mealColor(String mealType) {
     switch (mealType.toLowerCase()) {

@@ -8,6 +8,7 @@ import '../../core/providers/home_provider.dart';
 import '../../core/theme/app_colors.dart';
 import 'food_search_panel.dart';
 import 'my_food_screen.dart';
+import 'quick_add_screen.dart';
 
 class AddMealManualScreen extends StatefulWidget {
   final String? mealType;
@@ -166,10 +167,6 @@ class _AddMealManualScreenState extends State<AddMealManualScreen> {
         ),
       );
     });
-
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(SnackBar(content: Text('Added ${meal.mealName}')));
   }
 
   Future<void> _removeAddedDishWithAnimation(int dishId) async {
@@ -1233,6 +1230,11 @@ class _AddMealManualScreenState extends State<AddMealManualScreen> {
                                   dailyProteinTarget: widget.dailyProteinTarget,
                                   dailyFatTarget: widget.dailyFatTarget,
                                   dailyCarbsTarget: widget.dailyCarbsTarget,
+                                  onNutrientsAdded: _registerNutrientsAddition,
+                                )
+                              else if (_selectedActionIndex == 1)
+                                QuickAddScreen(
+                                  mealType: widget.mealType ?? 'snack',
                                   onNutrientsAdded: _registerNutrientsAddition,
                                 )
                               else if (_selectedActionIndex == 2)

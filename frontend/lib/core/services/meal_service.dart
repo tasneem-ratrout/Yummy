@@ -95,6 +95,30 @@ class MealService {
     );
   }
 
+  Future<Map<String, dynamic>> analyzeQuickAddText({
+    required String text,
+    String? mealType,
+  }) async {
+    final response = await http
+        .post(
+          Uri.parse('${AppConfig.baseUrl}/meals/quick-add/analyze'),
+          headers: await _headers(),
+          body: jsonEncode({
+            'text': text,
+            if (mealType != null && mealType.trim().isNotEmpty)
+              'mealType': mealType.trim(),
+          }),
+        )
+        .timeout(AppConfig.requestTimeout);
+
+    final data = (jsonDecode(response.body) as Map<String, dynamic>);
+    if (response.statusCode >= 200 && response.statusCode < 300) {
+      return data;
+    }
+
+    throw Exception(data['message']?.toString() ?? 'Failed to analyze text');
+  }
+
   Future<Map<String, dynamic>> updateDailyWater({
     required DateTime date,
     required int consumedWaterMl,

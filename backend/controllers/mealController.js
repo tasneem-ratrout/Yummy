@@ -1,5 +1,6 @@
 const MealEntry = require("../models/MealEntry");
 const DailyWaterEntry = require("../models/DailyWaterEntry");
+const { analyzeQuickAddText } = require("../services/quickAddNutritionService");
 
 const allowedMealTypes = new Set(["breakfast", "lunch", "snack", "dinner"]);
 
@@ -219,6 +220,31 @@ const updateDailyWater = async (req, res) => {
   }
 };
 
+const analyzeQuickAddMeal = async (req, res) => {
+  try {
+    const text = (req.body.text || "").toString().trim();
+    const mealType = (req.body.mealType || "snack").toString().trim().toLowerCase();
+
+    if (!text) {
+      return res.status(400).json({ message: "text is required" });
+    }
+
+    const analysis = await analyzeQuickAddText(text, mealType);
+
+    if (!analysis.items.length) {
+      return res.status(400).json({ message: "Could not analyze foods from the text" });
+    }
+
+    return res.status(200).json({
+      ...analysis,
+      message: "Quick add analyzed successfully",
+    });
+  } catch (error) {
+    console.error("Error analyzing quick add meal:", error.message);
+    return res.status(500).json({ message: error.message || "Server error" });
+  }
+};
+
 const getPreviousMeals = async (req, res) => {
   try {
     const userId = req.user.userId;
@@ -275,6 +301,7 @@ const getPreviousMeals = async (req, res) => {
 module.exports = {
   addMealsBatch,
   getDailySummary,
+  analyzeQuickAddMeal,
   getPreviousMeals,
   updateDailyWater,
 };
