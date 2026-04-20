@@ -1,15 +1,14 @@
-import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
-import 'package:http/http.dart' as http;
 import 'package:image/image.dart' as img;
 import 'package:image_picker/image_picker.dart';
 import 'package:lottie/lottie.dart';
 import 'package:path/path.dart' as p;
+import 'package:provider/provider.dart';
 
 import '../../core/config/app_config.dart';
-import '../../core/services/auth_service.dart';
+import '../../core/providers/user_provider.dart';
 import '../../core/theme/app_colors.dart';
 import '../../shared/back_button_widget.dart';
 
@@ -403,95 +402,76 @@ class _PersonalDetailsScreenState extends State<PersonalDetailsScreen> {
 
   Future<void> fetchUser() async {
     try {
-      final token = await AuthService().getToken();
+      setState(() => _isLoading = true);
 
-      final response = await http
-          .get(
-            Uri.parse("${AppConfig.baseUrl}/auth/me"),
-            headers: {
-              "Content-Type": "application/json",
-              "Authorization": "Bearer $token",
-            },
-          )
-          .timeout(const Duration(seconds: 30));
+      final provider = context.read<UserProvider>();
+      await provider.fetchUser();
+      final fetchedUser = provider.user;
 
-      try {
-        final data = jsonDecode(response.body) as Map<String, dynamic>;
-
-        if (response.statusCode == 200) {
-          final fetchedUser = Map<String, dynamic>.from(data["user"] ?? {});
-          final profile = Map<String, dynamic>.from(
-            fetchedUser["profile"] ?? {},
-          );
-
-          final height = profile["height"] is Map
-              ? Map<String, dynamic>.from(profile["height"])
-              : <String, dynamic>{};
-          final weight = profile["weight"] is Map
-              ? Map<String, dynamic>.from(profile["weight"])
-              : <String, dynamic>{};
-
-          final parsedBirthDate = _safeParseDate(profile["date_of_birth"]);
-          final goalValue = _safeOptionValue(profile["goal"], _goalOptions);
-          final genderValue = _safeOptionValue(
-            profile["gender"],
-            _genderOptions,
-          );
-          final activityValue = _safeOptionValue(
-            profile["activity_level"],
-            _activityOptions,
-          );
-
-          setState(() {
-            user = fetchedUser;
-
-            _nameCtrl.text = fetchedUser["name"]?.toString() ?? "";
-            _emailCtrl.text = fetchedUser["email"]?.toString() ?? "";
-            _heightCtrl.text = _numberText(height["value"]);
-            _weightCtrl.text = _numberText(weight["value"]);
-            _heightUnit = (height["unit"]?.toString().isNotEmpty ?? false)
-                ? height["unit"].toString()
-                : "cm";
-            _weightUnit = (weight["unit"]?.toString().isNotEmpty ?? false)
-                ? weight["unit"].toString()
-                : "kg";
-            _selectedBirthDate = parsedBirthDate;
-            _dobCtrl.text = parsedBirthDate != null
-                ? _formatDate(parsedBirthDate)
-                : "";
-            _ageCtrl.text = parsedBirthDate != null
-                ? _calculateAge(parsedBirthDate).toString()
-                : "";
-            _selectedGoal = goalValue;
-            _selectedGender = genderValue;
-            _selectedActivity = activityValue;
-            _selectedAllergies = _extractSelectedOptions(
-              profile["allergies"],
-              _allergyOptionItems,
-            );
-            _selectedConditions = _extractSelectedOptions(
-              profile["medical_conditions"],
-              _conditionOptionItems,
-            );
-
-            final rawImageValue =
-                profile["image_url"] ??
-                profile["image"] ??
-                profile["imageUrl"] ??
-                fetchedUser["imageUrl"];
-            _profileImageUrl = _resolveImageUrl(rawImageValue);
-            _selectedImageFile = null;
-
-            _isLoading = false;
-          });
-        } else {
-          setState(() => _isLoading = false);
-          _showSnack("Failed to load user data");
-        }
-      } catch (parseError) {
+      if (fetchedUser == null) {
         setState(() => _isLoading = false);
-        _showSnack("Invalid server response");
+        _showSnack("Failed to load user data");
+        return;
       }
+
+      final profile = Map<String, dynamic>.from(fetchedUser["profile"] ?? {});
+      final height = profile["height"] is Map
+          ? Map<String, dynamic>.from(profile["height"])
+          : <String, dynamic>{};
+      final weight = profile["weight"] is Map
+          ? Map<String, dynamic>.from(profile["weight"])
+          : <String, dynamic>{};
+
+      final parsedBirthDate = _safeParseDate(profile["date_of_birth"]);
+      final goalValue = _safeOptionValue(profile["goal"], _goalOptions);
+      final genderValue = _safeOptionValue(profile["gender"], _genderOptions);
+      final activityValue = _safeOptionValue(
+        profile["activity_level"],
+        _activityOptions,
+      );
+
+      setState(() {
+        user = fetchedUser;
+
+        _nameCtrl.text = fetchedUser["name"]?.toString() ?? "";
+        _emailCtrl.text = fetchedUser["email"]?.toString() ?? "";
+        _heightCtrl.text = _numberText(height["value"]);
+        _weightCtrl.text = _numberText(weight["value"]);
+        _heightUnit = (height["unit"]?.toString().isNotEmpty ?? false)
+            ? height["unit"].toString()
+            : "cm";
+        _weightUnit = (weight["unit"]?.toString().isNotEmpty ?? false)
+            ? weight["unit"].toString()
+            : "kg";
+        _selectedBirthDate = parsedBirthDate;
+        _dobCtrl.text = parsedBirthDate != null
+            ? _formatDate(parsedBirthDate)
+            : "";
+        _ageCtrl.text = parsedBirthDate != null
+            ? _calculateAge(parsedBirthDate).toString()
+            : "";
+        _selectedGoal = goalValue;
+        _selectedGender = genderValue;
+        _selectedActivity = activityValue;
+        _selectedAllergies = _extractSelectedOptions(
+          profile["allergies"],
+          _allergyOptionItems,
+        );
+        _selectedConditions = _extractSelectedOptions(
+          profile["medical_conditions"],
+          _conditionOptionItems,
+        );
+
+        final rawImageValue =
+            profile["image_url"] ??
+            profile["image"] ??
+            profile["imageUrl"] ??
+            fetchedUser["imageUrl"];
+        _profileImageUrl = _resolveImageUrl(rawImageValue);
+        _selectedImageFile = null;
+
+        _isLoading = false;
+      });
     } catch (e) {
       setState(() => _isLoading = false);
       _showSnack("Error: $e");
@@ -604,7 +584,7 @@ class _PersonalDetailsScreenState extends State<PersonalDetailsScreen> {
       // Round weight to 2 decimal places
       final roundedWeight = (parsedWeight * 100).round() / 100.0;
 
-      final response = await AuthService().saveProfile(
+      final response = await context.read<UserProvider>().saveProfile(
         name: _nameCtrl.text.trim(),
         email: _emailCtrl.text.trim(),
         imageFile: _selectedImageFile,

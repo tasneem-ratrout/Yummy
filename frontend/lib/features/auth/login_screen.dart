@@ -6,7 +6,9 @@ import '../../../shared/back_button_widget.dart';
 import 'package:frontend/features/auth/sign_up_account_screen.dart';
 import 'package:frontend/features/auth/forgot_password_screen.dart';
 import 'package:frontend/features/home/home_screen.dart';
-import '../../../core/services/auth_service.dart';
+import 'package:provider/provider.dart';
+import '../../../core/providers/auth_provider.dart';
+import '../../../core/providers/user_provider.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -21,8 +23,6 @@ class _LoginScreenState extends State<LoginScreen>
 
   final _emailCtrl = TextEditingController();
   final _passCtrl = TextEditingController();
-
-  final AuthService _authService = AuthService();
 
   bool _obscure = true;
   bool _rememberMe = true;
@@ -57,7 +57,7 @@ class _LoginScreenState extends State<LoginScreen>
   }
 
   Future<void> _loadRememberMePreference() async {
-    final savedValue = await _authService.getRememberMePreference();
+    final savedValue = context.read<AuthProvider>().rememberMe;
     if (!mounted) return;
 
     setState(() {
@@ -114,7 +114,10 @@ class _LoginScreenState extends State<LoginScreen>
     });
 
     try {
-      final result = await _authService.login(
+      final authProvider = context.read<AuthProvider>();
+      final userProvider = context.read<UserProvider>();
+
+      final result = await authProvider.login(
         email: email,
         password: pass,
         rememberMe: _rememberMe,
@@ -126,6 +129,10 @@ class _LoginScreenState extends State<LoginScreen>
         _showError(result['message'] ?? 'Login failed');
         return;
       }
+
+      await userProvider.fetchUser();
+
+      if (!mounted) return;
 
       setState(() => _loading = false);
 

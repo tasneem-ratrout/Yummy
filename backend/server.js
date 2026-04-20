@@ -40,6 +40,11 @@ app.get("/", (req, res) => {
 
 app.use("/api/auth", require("./routes/authRoutes"));
 app.use("/api/user-profile", require("./routes/userProfileRoutes"));
+app.use("/api/meals", (req, res, next) => {
+  console.log(`MEALS ${req.method} ${req.originalUrl}`);
+  next();
+});
+app.use("/api/meals", require("./routes/mealRoutes"));
 
 // 404 Handler
 app.use((req, res) => {

@@ -1,14 +1,15 @@
-import 'dart:convert';
 import 'package:flutter/material.dart';
-import 'package:http/http.dart' as http;
-import '../../core/services/auth_service.dart';
+import 'package:provider/provider.dart';
+import '../../core/providers/auth_provider.dart';
+import '../../core/providers/home_provider.dart';
+import '../../core/providers/user_provider.dart';
 import '../../core/config/app_config.dart';
 import '../../core/theme/app_colors.dart';
 import '../../shared/custom_bottom_nav.dart';
 import '../../shared/app_drawer.dart';
 import '../profile/personal_details_screen.dart';
 import '../auth/welcome_screen.dart';
-import '../add_meal/add_meal_manual_screen.dart';
+import '../add_meal/add_meal_screen.dart';
 import 'dart:math' as math;
 
 class HomeScreen extends StatefulWidget {
@@ -41,32 +42,15 @@ class MealCardData {
 
 class _HomeScreenState extends State<HomeScreen>
     with SingleTickerProviderStateMixin {
-  Map<String, dynamic>? user;
-  bool isLoading = true;
-
   // Placeholder values until backend logic is added.
   int fireCounter = 0;
-  DateTime _selectedDate = DateUtils.dateOnly(DateTime.now());
-
-  int dailyCalories = 0;
-  int dailyProtein = 0;
-  int dailyFat = 0;
-  int dailyCarbs = 0;
-
-  int consumedCalories = 0;
-  int consumedProtein = 0;
-  int consumedFat = 0;
-  int consumedCarbs = 0;
-
-  double dailyWaterGoalL = 3.5;
-  int consumedWaterMl = 0;
-  DateTime? lastDrinkTime;
 
   late final AnimationController _waveController;
 
   late List<MealCardData> mealCards;
 
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
+  VoidCallback? _homeProviderListener;
 
   static const TextStyle _sectionTitleStyle = TextStyle(
     fontSize: 18,
@@ -74,9 +58,36 @@ class _HomeScreenState extends State<HomeScreen>
     color: AppColors.deepBlue,
   );
 
+  HomeProvider get _homeProvider => context.read<HomeProvider>();
+  UserProvider get _userProvider => context.read<UserProvider>();
+
+  Map<String, dynamic>? get user => _userProvider.user;
+  bool get isLoading => _userProvider.isLoading;
+
+  DateTime get _selectedDate => _homeProvider.selectedDate;
+
+  int get dailyCalories => _homeProvider.dailyCalories;
+  int get dailyProtein => _homeProvider.dailyProtein;
+  int get dailyFat => _homeProvider.dailyFat;
+  int get dailyCarbs => _homeProvider.dailyCarbs;
+
+  int get consumedCalories => _homeProvider.consumedCalories;
+  int get consumedProtein => _homeProvider.consumedProtein;
+  int get consumedFat => _homeProvider.consumedFat;
+  int get consumedCarbs => _homeProvider.consumedCarbs;
+
+  double get dailyWaterGoalL => _homeProvider.dailyWaterGoalL;
+  int get consumedWaterMl => _homeProvider.consumedWaterMl;
+  DateTime? get lastDrinkTime => _homeProvider.lastDrinkTime;
+
   @override
   void initState() {
     super.initState();
+
+    _homeProviderListener = () {
+      _syncMealCardsFromProvider();
+    };
+    _homeProvider.addListener(_homeProviderListener!);
 
     _waveController = AnimationController(
       vsync: this,
@@ -125,16 +136,22 @@ class _HomeScreenState extends State<HomeScreen>
         ],
       ),
     ];
-    fetchUser();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      _loadHomeData();
+    });
   }
 
   @override
   void dispose() {
+    if (_homeProviderListener != null) {
+      _homeProvider.removeListener(_homeProviderListener!);
+    }
     _waveController.dispose();
     super.dispose();
   }
 
-  int get dailyWaterGoalMl => (dailyWaterGoalL * 1000).round();
+  int get dailyWaterGoalMl => _homeProvider.dailyWaterGoalMl;
 
   double get _waterProgress {
     if (dailyWaterGoalMl <= 0) return 0;
@@ -152,20 +169,11 @@ class _HomeScreenState extends State<HomeScreen>
   }
 
   void _addWaterBy(int amountMl) {
-    if (amountMl <= 0) return;
-    setState(() {
-      consumedWaterMl += amountMl;
-      lastDrinkTime = DateTime.now();
-    });
+    _homeProvider.addWaterBy(amountMl);
   }
 
   void _decrementWater() {
-    setState(() {
-      consumedWaterMl = (consumedWaterMl - 250).clamp(0, 999999);
-      if (consumedWaterMl == 0) {
-        lastDrinkTime = null;
-      }
-    });
+    _homeProvider.decrementWaterBy(250);
   }
 
   String _formatLastDrinkTime(DateTime? time) {
@@ -352,44 +360,44 @@ class _HomeScreenState extends State<HomeScreen>
     );
   }
 
-  Future<void> fetchUser() async {
-    try {
-      final token = await AuthService().getToken();
+  Future<void> _loadHomeData() async {
+    await _userProvider.fetchUser();
+    _syncTargetsFromUser();
+    await _homeProvider.fetchDailyMealSummary(date: _selectedDate);
+    _syncMealCardsFromProvider();
+  }
 
-      final response = await http.get(
-        Uri.parse("${AppConfig.baseUrl}/auth/me"),
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": "Bearer $token",
-        },
-      );
+  void _syncMealCardsFromProvider() {
+    final consumedMap = _homeProvider.mealConsumedCalories;
+    final namesMap = _homeProvider.mealNames;
 
-      final data = jsonDecode(response.body);
-
-      if (response.statusCode == 200 && data["user"] != null) {
-        final profile = data["user"]["profile"];
-        final calories = calculateCalories(profile);
-        final macros = calculateMacros(profile, calories);
-
-        setState(() {
-          user = data["user"];
-          dailyCalories = calories;
-          dailyProtein = macros["protein"] ?? 0;
-          dailyFat = macros["fat"] ?? 0;
-          dailyCarbs = macros["carbs"] ?? 0;
-          isLoading = false;
-        });
-      } else {
-        setState(() => isLoading = false);
+    if (!mounted) return;
+    setState(() {
+      for (final meal in mealCards) {
+        meal.calories = (consumedMap[meal.type] ?? 0).clamp(0, 999999);
+        final mealName = (namesMap[meal.type] ?? '').trim();
+        meal.mealName = mealName.isEmpty ? null : mealName;
       }
-    } catch (e) {
-      debugPrint("HOME ERROR: $e");
-      setState(() => isLoading = false);
-    }
+    });
+  }
+
+  void _syncTargetsFromUser() {
+    final profile = user?["profile"];
+    if (profile == null) return;
+
+    final calories = calculateCalories(profile);
+    final macros = calculateMacros(profile, calories);
+
+    _homeProvider.setDailyTargets(
+      calories: calories,
+      protein: macros["protein"] ?? 0,
+      fat: macros["fat"] ?? 0,
+      carbs: macros["carbs"] ?? 0,
+    );
   }
 
   Future<void> _onRefresh() async {
-    await fetchUser();
+    await _loadHomeData();
   }
 
   int calculateAge(String dateOfBirth) {
@@ -1001,8 +1009,8 @@ class _HomeScreenState extends State<HomeScreen>
     return ((_mealLeftCalories(meal) / target) * 100).round().clamp(0, 100);
   }
 
-  void _goToAddMealScreen(MealCardData meal) {
-    Navigator.of(context).push(
+  Future<void> _goToAddMealScreen(MealCardData meal) async {
+    await Navigator.of(context).push(
       MaterialPageRoute(
         builder: (_) => AddMealManualScreen(
           mealType: meal.type,
@@ -1010,9 +1018,18 @@ class _HomeScreenState extends State<HomeScreen>
           targetCalories: _mealTargetCalories(meal),
           consumedCalories: (meal.calories ?? 0).clamp(0, 999999),
           mealImageAsset: meal.iconAsset,
+          selectedDate: _selectedDate,
+          dailyCalorieTarget: dailyCalories,
+          dailyProteinTarget: dailyProtein,
+          dailyFatTarget: dailyFat,
+          dailyCarbsTarget: dailyCarbs,
         ),
       ),
     );
+
+    if (!mounted) return;
+    await _homeProvider.fetchDailyMealSummary(date: _selectedDate);
+    _syncMealCardsFromProvider();
   }
 
   String greeting() {
@@ -1073,9 +1090,13 @@ class _HomeScreenState extends State<HomeScreen>
   }
 
   Future<void> _logout() async {
-    await AuthService().logout();
-    await AuthService().setRememberMePreference(false);
+    final authProvider = context.read<AuthProvider>();
+    final userProvider = context.read<UserProvider>();
+
+    await authProvider.logout();
     if (!mounted) return;
+
+    userProvider.clear();
 
     Navigator.pushAndRemoveUntil(
       context,
@@ -1182,11 +1203,14 @@ class _HomeScreenState extends State<HomeScreen>
                     }
                     meal.calories = (meal.calories ?? 0) + calories;
                   }
-                  consumedCalories += calories;
-                  consumedProtein += protein;
-                  consumedFat += fat;
-                  consumedCarbs += carbs;
                 });
+
+                _homeProvider.addConsumedMacros(
+                  calories: calories,
+                  protein: protein,
+                  fat: fat,
+                  carbs: carbs,
+                );
 
                 Navigator.pop(dialogContext);
                 ScaffoldMessenger.of(context).showSnackBar(
@@ -1538,9 +1562,9 @@ class _HomeScreenState extends State<HomeScreen>
 
     if (pickedDate == null) return;
 
-    setState(() {
-      _selectedDate = DateUtils.dateOnly(pickedDate);
-    });
+    _homeProvider.setSelectedDate(pickedDate);
+    await _homeProvider.fetchDailyMealSummary(date: pickedDate);
+    _syncMealCardsFromProvider();
   }
 
   Widget _buildDateHistoryButton() {
@@ -1582,10 +1606,10 @@ class _HomeScreenState extends State<HomeScreen>
           final isToday = _isSameDay(date, today);
 
           return GestureDetector(
-            onTap: () {
-              setState(() {
-                _selectedDate = DateUtils.dateOnly(date);
-              });
+            onTap: () async {
+              _homeProvider.setSelectedDate(date);
+              await _homeProvider.fetchDailyMealSummary(date: date);
+              _syncMealCardsFromProvider();
             },
             child: AnimatedScale(
               duration: const Duration(milliseconds: 220),
@@ -1836,6 +1860,9 @@ class _HomeScreenState extends State<HomeScreen>
 
   @override
   Widget build(BuildContext context) {
+    context.watch<UserProvider>();
+    context.watch<HomeProvider>();
+
     if (isLoading) {
       return const Scaffold(
         backgroundColor: AppColors.background,
@@ -2029,11 +2056,10 @@ class _HomeScreenState extends State<HomeScreen>
       floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
       bottomNavigationBar: CustomBottomNav(
         currentIndex: 0,
+        selectedDate: _selectedDate,
         dailyCalories: dailyCalories,
         goal: user?["profile"]?["goal"]?.toString(),
-        mealConsumedCalories: {
-          for (final meal in mealCards) meal.type: meal.calories ?? 0,
-        },
+        mealConsumedCalories: _homeProvider.mealConsumedCalories,
         consumedWaterMl: consumedWaterMl,
         dailyWaterGoalMl: dailyWaterGoalMl,
         onAddWaterTap: _addWaterBy,

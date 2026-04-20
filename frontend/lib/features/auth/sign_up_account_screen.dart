@@ -4,7 +4,8 @@ import '../../../shared/glass_text_field.dart';
 import '../../../shared/app_background.dart';
 import '../../../shared/back_button_widget.dart';
 import 'package:frontend/features/auth/signup_flow_screen.dart';
-import '../../../core/services/auth_service.dart';
+import 'package:provider/provider.dart';
+import '../../../core/providers/auth_provider.dart';
 
 class SignUpAccountScreen extends StatefulWidget {
   const SignUpAccountScreen({super.key});
@@ -20,8 +21,6 @@ class _SignUpAccountScreenState extends State<SignUpAccountScreen>
   final _emailCtrl = TextEditingController();
   final _passCtrl = TextEditingController();
   final _confirmCtrl = TextEditingController();
-
-  final AuthService _authService = AuthService();
 
   bool _obscure = true;
   bool _obscureConfirm = true;
@@ -117,7 +116,10 @@ class _SignUpAccountScreenState extends State<SignUpAccountScreen>
     });
 
     try {
-      final result = await _authService.register(email: email, password: pass);
+      final result = await context.read<AuthProvider>().register(
+        email: email,
+        password: pass,
+      );
 
       if (!mounted) return;
 

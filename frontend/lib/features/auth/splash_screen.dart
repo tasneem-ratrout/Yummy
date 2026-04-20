@@ -1,7 +1,9 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:lottie/lottie.dart';
-import 'package:frontend/core/services/auth_service.dart';
+import 'package:provider/provider.dart';
+import 'package:frontend/core/providers/auth_provider.dart';
+import 'package:frontend/core/providers/user_provider.dart';
 import 'package:frontend/features/home/home_screen.dart';
 import '../auth/welcome_screen.dart';
 import '../../core/theme/app_colors.dart';
@@ -15,8 +17,6 @@ class SplashScreen extends StatefulWidget {
 
 class _SplashScreenState extends State<SplashScreen>
     with SingleTickerProviderStateMixin {
-  final AuthService _authService = AuthService();
-
   late AnimationController _controller;
   late Animation<double> _fadeAnimation;
   late Animation<double> _scaleAnimation;
@@ -50,15 +50,17 @@ class _SplashScreenState extends State<SplashScreen>
 
   void _startNavigationTimer() {
     Timer(const Duration(seconds: 5), () async {
-      final rememberMe = await _authService.getRememberMePreference();
-      final token = await _authService.getToken();
+      final authProvider = context.read<AuthProvider>();
+      if (authProvider.isAuthenticated) {
+        await context.read<UserProvider>().fetchUser();
+      }
 
       if (!mounted) return;
 
       Navigator.pushReplacement(
         context,
         MaterialPageRoute(
-          builder: (_) => (rememberMe && token != null)
+          builder: (_) => authProvider.isAuthenticated
               ? const HomeScreen()
               : const WelcomeScreen(),
         ),
@@ -87,7 +89,7 @@ class _SplashScreenState extends State<SplashScreen>
               mainAxisSize: MainAxisSize.min,
               children: [
                 Image.asset("assets/images/logo_white.png", width: 300),
-               
+
                 SizedBox(
                   width: 310,
                   height: 110,

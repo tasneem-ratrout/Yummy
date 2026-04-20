@@ -7,10 +7,12 @@ class GlassTextField extends StatelessWidget {
   final String hint;
   final TextEditingController controller;
   final TextInputType keyboardType;
+  final TextAlign textAlign;
   final bool obscureText;
   final String? Function(String?)? validator;
   final IconData prefixIcon;
   final Widget? suffix;
+  final AlignmentGeometry labelAlignment;
 
   const GlassTextField({
     super.key,
@@ -19,9 +21,11 @@ class GlassTextField extends StatelessWidget {
     required this.controller,
     required this.keyboardType,
     required this.prefixIcon,
+    this.textAlign = TextAlign.start,
     this.obscureText = false,
     this.validator,
     this.suffix,
+    this.labelAlignment = Alignment.centerLeft,
   });
 
   @override
@@ -37,15 +41,21 @@ class GlassTextField extends StatelessWidget {
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
-              label,
-              style: const TextStyle(
-                color: AppColors.labelGray, // رمادي فاتح
-                fontWeight: FontWeight.w700,
-                fontSize: 12.5,
+            if (label.trim().isNotEmpty) ...[
+              Align(
+                alignment: labelAlignment,
+                child: Text(
+                  label,
+                  textAlign: textAlign,
+                  style: const TextStyle(
+                    color: AppColors.labelGray, // رمادي فاتح
+                    fontWeight: FontWeight.w700,
+                    fontSize: 12.5,
+                  ),
+                ),
               ),
-            ),
-            const SizedBox(height: 8),
+              const SizedBox(height: 8),
+            ],
 
             ClipRRect(
               borderRadius: radius,
@@ -87,6 +97,7 @@ class GlassTextField extends StatelessWidget {
                     controller: controller,
                     keyboardType: keyboardType,
                     obscureText: obscureText,
+                    textAlign: textAlign,
 
                     // مهم: يخلي الـ FormField يعرف التغيير ويعمل validate
                     onChanged: (v) => state.didChange(v),

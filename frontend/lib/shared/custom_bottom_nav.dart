@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:lottie/lottie.dart';
 import '../../core/theme/app_colors.dart';
-import '../../features/add_meal/add_meal_manual_screen.dart';
+import '../features/add_meal/add_meal_screen.dart';
 import '../../features/home/home_screen.dart';
 
 class NavItemData {
@@ -72,6 +72,7 @@ class _BottomNavNotchClipper extends CustomClipper<Path> {
 
 class CustomBottomNav extends StatelessWidget {
   final int currentIndex;
+  final DateTime? selectedDate;
   final int? dailyCalories;
   final String? goal;
   final Map<String, int>? mealConsumedCalories;
@@ -82,6 +83,7 @@ class CustomBottomNav extends StatelessWidget {
   const CustomBottomNav({
     super.key,
     required this.currentIndex,
+    this.selectedDate,
     this.dailyCalories,
     this.goal,
     this.mealConsumedCalories,
@@ -404,6 +406,7 @@ class CustomBottomNav extends StatelessWidget {
                                     targetCalories: option.targetCalories,
                                     consumedCalories: option.consumedCalories,
                                     mealImageAsset: option.imageAsset,
+                                    selectedDate: selectedDate,
                                   ),
                                 ),
                               );
