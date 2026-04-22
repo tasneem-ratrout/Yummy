@@ -29,6 +29,11 @@ const normalizeQuickAddText = (text) => {
 
 	normalized = normalized
 		.replace(/[\u0640]/g, "")
+		.replace(/\bchiken\b/gi, "chicken")
+		.replace(/\bchiken\s*breast\b/gi, "chicken breast")
+		.replace(/\bcoffe\b/gi, "coffee")
+		.replace(/\brite\b/gi, "rice")
+		.replace(/(?<!\d\s)\bcup\s+([a-zA-Z])/gi, "1 cup $1")
 		.replace(/(\d)\s*[،,]\s*(\d)/g, "$1.$2")
 		.replace(/\b(?:جرام|غرام|غم|غ)\b/gi, "g")
 		.replace(/\b(?:كيلو\s*جرام|كيلو\s*غرام|كجم|كغ|كيلو)\b/gi, "kg")
@@ -109,17 +114,85 @@ const splitIngredientLines = (text) => {
 
 	if (!normalized) return [];
 
+	const cleanIngredientPhrase = (phrase) => {
+		let cleaned = (phrase || "").toString().trim();
+		if (!cleaned) return "";
+
+		cleaned = cleaned
+			.replace(/\b(?:i|i'm|ive|i've|me|my|ate|eat|eate|had|have|having|want|with|for|today|meal|dish)\b/gi, " ")
+			.replace(/\b(?:one|a|an)\s+/gi, "1 ")
+			.replace(/\s+/g, " ")
+			.trim();
+
+		if (/^1\s+chicken$/i.test(cleaned)) {
+			cleaned = "100 g chicken breast";
+		}
+
+		return cleaned;
+	};
+
 	const parts = normalized
-		.split(/\s*(?:,|\+| and | with | plus | و | مع )\s*/i)
-		.map((part) => part.trim())
+		.split(/\s*(?:,|\+|\.| and | then | with | plus | و | مع )\s*/i)
+		.map(cleanIngredientPhrase)
 		.filter(Boolean);
 
 	return parts.length > 0 ? parts : [normalized];
 };
 
+const compactFoodName = (name) => {
+	let value = (name || "").toString().trim();
+	if (!value) return "";
+
+	value = value
+		.replace(/^(?:\d+(?:\.\d+)?\s*(?:kg|g|gm|ml|l|oz|lb|cup|cups|tbsp|tsp)?\s*)+/i, "")
+		.replace(/^(?:kg|g|gm|ml|l|oz|lb|cup|cups|tbsp|tsp)\s+/i, "")
+		.replace(/^(?:a|an|one)\s+/i, "")
+		.replace(/\s+/g, " ")
+		.trim();
+
+	return value;
+};
+
+const titleCase = (value) =>
+	(value || "")
+		.split(/\s+/)
+		.filter(Boolean)
+		.map((word) => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+		.join(" ");
+
+const buildMealDisplayName = (items, fallbackText) => {
+	const names = (Array.isArray(items) ? items : [])
+		.map((item) => compactFoodName(item?.name))
+		.filter((name) => name && name.toLowerCase() !== "food item");
+
+	const uniqueNames = [...new Set(names.map((name) => name.toLowerCase()))].map((lowerName) => {
+		const original = names.find((name) => name.toLowerCase() === lowerName) || lowerName;
+		return titleCase(original);
+	});
+
+	if (uniqueNames.length === 0) {
+		const fallback = compactFoodName(fallbackText);
+		return fallback ? titleCase(fallback) : "Quick Add Item";
+	}
+
+	if (uniqueNames.length <= 3) {
+		return uniqueNames.join(" + ");
+	}
+
+	return `${uniqueNames.slice(0, 3).join(" + ")} + Mix`;
+};
+
 const nutrientValue = (source, key) => {
 	if (!source || typeof source !== "object") return 0;
 	return numberOrZero(source[key]?.quantity);
+};
+
+const nutrientAmount = (nutrient) => {
+	if (typeof nutrient === "number") return numberOrZero(nutrient);
+	if (nutrient && typeof nutrient === "object") {
+		return numberOrZero(nutrient.quantity);
+	}
+	return 0;
 };
 
 const mapEdamamIngredient = (ingredient) => {
@@ -128,10 +201,10 @@ const mapEdamamIngredient = (ingredient) => {
 		: null;
 
 	const parsedNutrients = parsed?.nutrients || {};
-	const calories = numberOrZero(parsedNutrients.ENERC_KCAL);
-	const protein = numberOrZero(parsedNutrients.PROCNT);
-	const carbs = numberOrZero(parsedNutrients.CHOCDF);
-	const fat = numberOrZero(parsedNutrients.FAT);
+	const calories = nutrientAmount(parsedNutrients.ENERC_KCAL);
+	const protein = nutrientAmount(parsedNutrients.PROCNT);
+	const carbs = nutrientAmount(parsedNutrients.CHOCDF);
+	const fat = nutrientAmount(parsedNutrients.FAT);
 
 	return {
 		name:
@@ -141,7 +214,7 @@ const mapEdamamIngredient = (ingredient) => {
 			"Food item",
 		quantity: numberOrZero(parsed?.quantity) || 1,
 		unit: (parsed?.measure || "serving").toString().trim().toLowerCase() || "serving",
-		grams: numberOrZero(ingredient?.weight),
+		grams: numberOrZero(parsed?.weight) || numberOrZero(parsed?.retainedWeight) || numberOrZero(ingredient?.weight),
 		calories: Number(calories.toFixed(1)),
 		protein: Number(protein.toFixed(1)),
 		carbs: Number(carbs.toFixed(1)),
@@ -208,18 +281,33 @@ const analyzeQuickAddText = async (text, mealType = "snack") => {
 	}
 
 	const totalNutrients = data?.totalNutrients || {};
-	const calories = numberOrZero(data?.calories);
-	const protein = nutrientValue(totalNutrients, "PROCNT");
-	const carbs = nutrientValue(totalNutrients, "CHOCDF");
-	const fat = nutrientValue(totalNutrients, "FAT");
-	const explicitGrams = extractExplicitWeightGrams(mealName);
-	const weightInfo = getWeightSource(mealName, explicitGrams, data?.totalWeight);
-
 	const items = (Array.isArray(data?.ingredients) ? data.ingredients : []).map(mapEdamamIngredient);
+
+	const fallbackTotals = items.reduce(
+		(acc, item) => {
+			acc.calories += numberOrZero(item.calories);
+			acc.protein += numberOrZero(item.protein);
+			acc.carbs += numberOrZero(item.carbs);
+			acc.fat += numberOrZero(item.fat);
+			acc.grams += numberOrZero(item.grams);
+			return acc;
+		},
+		{ calories: 0, protein: 0, carbs: 0, fat: 0, grams: 0 }
+	);
+
+	const calories = numberOrZero(data?.calories) || fallbackTotals.calories;
+	const protein = nutrientValue(totalNutrients, "PROCNT") || fallbackTotals.protein;
+	const carbs = nutrientValue(totalNutrients, "CHOCDF") || fallbackTotals.carbs;
+	const fat = nutrientValue(totalNutrients, "FAT") || fallbackTotals.fat;
+	const explicitGrams = extractExplicitWeightGrams(mealName);
+	const weightInfo = getWeightSource(mealName, explicitGrams, data?.totalWeight || fallbackTotals.grams);
+
+	const displayMealName = buildMealDisplayName(items, mealName);
 
 	return {
 		mealType,
-		mealName,
+		mealName: displayMealName,
+		originalText: mealName,
 		explicitGrams,
 		weightSource: weightInfo.source,
 		calories: Number(calories.toFixed(1)),

@@ -6,6 +6,7 @@ import 'package:provider/provider.dart';
 
 import '../../core/providers/home_provider.dart';
 import '../../core/theme/app_colors.dart';
+import 'barcode_scan_panel.dart';
 import 'food_search_panel.dart';
 import 'my_food_screen.dart';
 import 'quick_add_screen.dart';
@@ -1240,6 +1241,10 @@ class _AddMealManualScreenState extends State<AddMealManualScreen> {
                               else if (_selectedActionIndex == 2)
                                 MyFoodScreenPanel(
                                   onAddMeal: _registerPreviousMealAddition,
+                                )
+                              else if (_selectedActionIndex == 4)
+                                BarcodeScanPanel(
+                                  onNutrientsAdded: _registerNutrientsAddition,
                                 )
                               else
                                 Container(
