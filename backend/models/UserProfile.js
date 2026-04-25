@@ -56,6 +56,15 @@ const userProfileSchema = new mongoose.Schema(
       type: String,
       default: "",
     },
+    streak_count: {
+      type: Number,
+      default: 0,
+      min: 0,
+    },
+    streak_dates: {
+      type: [Date],
+      default: [],
+    },
   },
   { timestamps: true }
 );

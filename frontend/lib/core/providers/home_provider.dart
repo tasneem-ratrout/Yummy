@@ -9,6 +9,7 @@ class HomeProvider extends ChangeNotifier {
   final MealService _mealService;
 
   DateTime _selectedDate = DateUtils.dateOnly(DateTime.now());
+  DateTime? _lastSummaryDate;
 
   int _dailyCalories = 0;
   int _dailyProtein = 0;
@@ -39,6 +40,7 @@ class HomeProvider extends ChangeNotifier {
   DateTime? _lastDrinkTime;
 
   DateTime get selectedDate => _selectedDate;
+  DateTime? get lastSummaryDate => _lastSummaryDate;
 
   int get dailyCalories => _dailyCalories;
   int get dailyProtein => _dailyProtein;
@@ -137,6 +139,8 @@ class HomeProvider extends ChangeNotifier {
       _lastDrinkTime = rawLastDrink == null
           ? null
           : DateTime.tryParse(rawLastDrink.toString())?.toLocal();
+
+      _lastSummaryDate = targetDate;
     } catch (_) {
       // Keep previous state on transient failures.
     }

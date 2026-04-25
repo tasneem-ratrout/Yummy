@@ -49,6 +49,15 @@ const parseListField = (value) => {
   return [stringValue];
 };
 
+const normalizeDateOnlyUtc = (value) => {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return null;
+
+  return new Date(
+    Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate())
+  );
+};
+
 const createOrUpdateProfile = async (req, res) => {
   try {
     const user_id = req.user.userId;
@@ -243,4 +252,64 @@ const getMyProfile = async (req, res) => {
   }
 };
 
-module.exports = { createOrUpdateProfile, getMyProfile };
+const updateMyStreak = async (req, res) => {
+  try {
+    const user_id = req.user.userId;
+    const { streak_count, streak_dates } = req.body;
+
+    const parsedCount = Number(streak_count);
+    if (!Number.isFinite(parsedCount) || parsedCount < 0) {
+      return res.status(400).json({
+        message: "streak_count must be a non-negative number",
+      });
+    }
+
+    if (!Array.isArray(streak_dates)) {
+      return res.status(400).json({
+        message: "streak_dates must be an array",
+      });
+    }
+
+    const normalizedDates = [];
+    const uniqueDates = new Set();
+
+    for (const item of streak_dates) {
+      const normalized = normalizeDateOnlyUtc(item);
+      if (!normalized) continue;
+
+      const key = normalized.toISOString().slice(0, 10);
+      if (uniqueDates.has(key)) continue;
+      uniqueDates.add(key);
+      normalizedDates.push(normalized);
+    }
+
+    normalizedDates.sort((a, b) => a.getTime() - b.getTime());
+
+    const profile = await UserProfile.findOneAndUpdate(
+      { user_id },
+      {
+        $set: {
+          user_id,
+          streak_count: Math.floor(parsedCount),
+          streak_dates: normalizedDates,
+        },
+      },
+      { new: true, upsert: true }
+    );
+
+    return res.status(200).json({
+      message: "Streak updated successfully",
+      streak: {
+        streak_count: profile.streak_count || 0,
+        streak_dates: profile.streak_dates || [],
+      },
+    });
+  } catch (error) {
+    return res.status(500).json({
+      message: "Server error",
+      error: error.message,
+    });
+  }
+};
+
+module.exports = { createOrUpdateProfile, getMyProfile, updateMyStreak };

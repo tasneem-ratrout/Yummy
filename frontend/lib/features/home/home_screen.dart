@@ -10,6 +10,9 @@ import '../../shared/app_drawer.dart';
 import '../profile/personal_details_screen.dart';
 import '../auth/welcome_screen.dart';
 import '../add_meal/add_meal_screen.dart';
+import 'widgets/fire_streak_dialog_card.dart';
+import 'widgets/streak_gain_popup_card.dart';
+import 'widgets/streak_lost_popup_card.dart';
 import 'dart:math' as math;
 
 class HomeScreen extends StatefulWidget {
@@ -44,6 +47,19 @@ class _HomeScreenState extends State<HomeScreen>
     with SingleTickerProviderStateMixin {
   // Placeholder values until backend logic is added.
   int fireCounter = 0;
+  DateTime? _lastStreakAwardedDate;
+  List<DateTime> _streakDates = [];
+  bool _isSavingStreak = false;
+  bool _isShowingStreakGainPopup = false;
+  bool _isShowingStreakLostPopup = false;
+  bool _isFirstStreakEvaluation = true;
+  bool _hadReachedGoalToday = false;
+  DateTime? _lastGainPopupDate;
+  DateTime? _lastLossPopupDate;
+  bool _hasEvaluatedLossOnAppOpen = false;
+  bool _isHydratingHomeData = false;
+  bool _hasPendingGainPopup = false;
+  int? _pendingGainPopupCount;
 
   late final AnimationController _waveController;
 
@@ -65,6 +81,11 @@ class _HomeScreenState extends State<HomeScreen>
   bool get isLoading => _userProvider.isLoading;
 
   DateTime get _selectedDate => _homeProvider.selectedDate;
+  bool get _hasFreshSummaryForSelectedDate {
+    final lastSummaryDate = _homeProvider.lastSummaryDate;
+    if (lastSummaryDate == null) return false;
+    return DateUtils.isSameDay(lastSummaryDate, _selectedDate);
+  }
 
   int get dailyCalories => _homeProvider.dailyCalories;
   int get dailyProtein => _homeProvider.dailyProtein;
@@ -86,8 +107,14 @@ class _HomeScreenState extends State<HomeScreen>
 
     _homeProviderListener = () {
       _syncMealCardsFromProvider();
+      if (_hasFreshSummaryForSelectedDate) {
+        _syncStreakFromCalories(allowAwardToday: !_isHydratingHomeData);
+      }
     };
     _homeProvider.addListener(_homeProviderListener!);
+
+    // Hydrate streak immediately from any already-cached user data.
+    _syncStreakFromUserProfile();
 
     _waveController = AnimationController(
       vsync: this,
@@ -361,10 +388,311 @@ class _HomeScreenState extends State<HomeScreen>
   }
 
   Future<void> _loadHomeData() async {
-    await _userProvider.fetchUser();
-    _syncTargetsFromUser();
-    await _homeProvider.fetchDailyMealSummary(date: _selectedDate);
-    _syncMealCardsFromProvider();
+    _isHydratingHomeData = true;
+    try {
+      await _userProvider.fetchUser();
+      _syncStreakFromUserProfile();
+      _syncTargetsFromUser();
+      _evaluateStreakLossOnAppOpen();
+      await _homeProvider.fetchDailyMealSummary(date: _selectedDate);
+      _syncMealCardsFromProvider();
+      _syncStreakFromCalories(allowAwardToday: false);
+    } finally {
+      _isHydratingHomeData = false;
+    }
+  }
+
+  void _evaluateStreakLossOnAppOpen() {
+    if (_hasEvaluatedLossOnAppOpen) return;
+    _hasEvaluatedLossOnAppOpen = true;
+
+    if (!mounted || fireCounter <= 0 || _streakDates.isEmpty) return;
+
+    final today = DateUtils.dateOnly(DateTime.now());
+    final sortedDates = _streakDates.map(DateUtils.dateOnly).toList()
+      ..sort((a, b) => a.compareTo(b));
+    final latest = sortedDates.last;
+    final gapFromToday = today.difference(latest).inDays;
+
+    // A missed full day means streak is fully lost.
+    if (gapFromToday <= 1) return;
+
+    final missedDay = today.subtract(const Duration(days: 1));
+
+    if (!mounted) return;
+    setState(() {
+      fireCounter = 0;
+      _streakDates = [];
+      _lastStreakAwardedDate = null;
+      _hadReachedGoalToday = false;
+      _isFirstStreakEvaluation = false;
+    });
+
+    _syncStreakToServer(streakCount: 0, streakDates: const []);
+
+    if (!DateUtils.isSameDay(_lastLossPopupDate, missedDay)) {
+      _lastLossPopupDate = missedDay;
+      _showStreakLostPopup();
+    }
+  }
+
+  void _syncStreakFromUserProfile() {
+    final profile = user?['profile'];
+    if (profile is! Map) return;
+    final profileMap = Map<String, dynamic>.from(profile as Map);
+
+    final int dbCounter = (profileMap['streak_count'] as num?)?.toInt() ?? 0;
+    final rawDates = profileMap['streak_dates'];
+    final dates = <DateTime>[];
+
+    if (rawDates is List) {
+      for (final item in rawDates) {
+        final parsed = DateTime.tryParse(item.toString());
+        if (parsed == null) continue;
+        dates.add(DateUtils.dateOnly(parsed.toLocal()));
+      }
+    }
+
+    dates.sort((a, b) => a.compareTo(b));
+    final uniqueDates = <DateTime>[];
+    for (final date in dates) {
+      if (uniqueDates.any((d) => DateUtils.isSameDay(d, date))) continue;
+      uniqueDates.add(date);
+    }
+
+    final newLast = uniqueDates.isEmpty ? null : uniqueDates.last;
+    final shouldUpdate =
+        dbCounter != fireCounter ||
+        !_sameDateLists(uniqueDates, _streakDates) ||
+        !DateUtils.isSameDay(newLast, _lastStreakAwardedDate);
+
+    if (!shouldUpdate) return;
+
+    setState(() {
+      fireCounter = dbCounter;
+      _streakDates = uniqueDates;
+      _lastStreakAwardedDate = newLast;
+    });
+  }
+
+  Future<void> _syncStreakToServer({
+    required int streakCount,
+    required List<DateTime> streakDates,
+  }) async {
+    if (_isSavingStreak) return;
+
+    _isSavingStreak = true;
+    try {
+      await _userProvider.syncStreak(
+        streakCount: streakCount,
+        streakDates: streakDates,
+      );
+    } finally {
+      _isSavingStreak = false;
+    }
+  }
+
+  Future<void> _showStreakGainPopup(int newStreakCount) async {
+    if (!mounted || _isShowingStreakGainPopup) return;
+
+    _isShowingStreakGainPopup = true;
+    try {
+      await showGeneralDialog<void>(
+        context: context,
+        barrierDismissible: true,
+        barrierLabel: 'streak-gain',
+        barrierColor: Colors.black.withValues(alpha: 0.35),
+        pageBuilder: (_, __, ___) {
+          return Center(
+            child: StreakGainPopupCard(streakCount: newStreakCount),
+          );
+        },
+        transitionDuration: const Duration(milliseconds: 240),
+        transitionBuilder: (_, animation, __, child) {
+          final curved = CurvedAnimation(
+            parent: animation,
+            curve: Curves.easeOutBack,
+            reverseCurve: Curves.easeIn,
+          );
+
+          return FadeTransition(
+            opacity: animation,
+            child: ScaleTransition(
+              scale: Tween<double>(begin: 0.85, end: 1).animate(curved),
+              child: child,
+            ),
+          );
+        },
+      );
+    } finally {
+      _isShowingStreakGainPopup = false;
+    }
+  }
+
+  bool get _isCurrentHomeRoute => ModalRoute.of(context)?.isCurrent ?? true;
+
+  void _queueGainPopup(int streakCount) {
+    _hasPendingGainPopup = true;
+    _pendingGainPopupCount = streakCount;
+  }
+
+  void _tryShowPendingGainPopup() {
+    if (!_hasPendingGainPopup || !mounted || !_isCurrentHomeRoute) return;
+
+    final today = DateUtils.dateOnly(DateTime.now());
+    if (DateUtils.isSameDay(_lastGainPopupDate, today)) {
+      _hasPendingGainPopup = false;
+      _pendingGainPopupCount = null;
+      return;
+    }
+
+    final streakCount = _pendingGainPopupCount ?? fireCounter;
+    _hasPendingGainPopup = false;
+    _pendingGainPopupCount = null;
+    _lastGainPopupDate = today;
+    _showStreakGainPopup(streakCount);
+  }
+
+  Future<void> _showStreakLostPopup() async {
+    if (!mounted || _isShowingStreakLostPopup) return;
+
+    _isShowingStreakLostPopup = true;
+    try {
+      await showGeneralDialog<void>(
+        context: context,
+        barrierDismissible: true,
+        barrierLabel: 'streak-lost',
+        barrierColor: Colors.black.withValues(alpha: 0.35),
+        pageBuilder: (_, __, ___) {
+          return const Center(child: StreakLostPopupCard());
+        },
+        transitionDuration: const Duration(milliseconds: 240),
+        transitionBuilder: (_, animation, __, child) {
+          final curved = CurvedAnimation(
+            parent: animation,
+            curve: Curves.easeOutBack,
+            reverseCurve: Curves.easeIn,
+          );
+
+          return FadeTransition(
+            opacity: animation,
+            child: ScaleTransition(
+              scale: Tween<double>(begin: 0.88, end: 1).animate(curved),
+              child: child,
+            ),
+          );
+        },
+      );
+    } finally {
+      _isShowingStreakLostPopup = false;
+    }
+  }
+
+  int _calculateConsecutiveStreak(List<DateTime> dates, DateTime today) {
+    if (dates.isEmpty) return 0;
+
+    final normalizedToday = DateUtils.dateOnly(today);
+    final normalizedDates = dates.map(DateUtils.dateOnly).toList()
+      ..sort((a, b) => a.compareTo(b));
+
+    final keys = normalizedDates
+        .map((d) => d.toIso8601String().split('T').first)
+        .toSet();
+
+    final latest = normalizedDates.last;
+    final gapFromToday = normalizedToday.difference(latest).inDays;
+
+    // Lose streak only when a full day is missed.
+    if (gapFromToday > 1) return 0;
+
+    int streak = 0;
+    DateTime cursor = latest;
+    while (keys.contains(cursor.toIso8601String().split('T').first)) {
+      streak++;
+      cursor = cursor.subtract(const Duration(days: 1));
+    }
+
+    return streak;
+  }
+
+  bool _sameDateLists(List<DateTime> a, List<DateTime> b) {
+    if (a.length != b.length) return false;
+    for (int i = 0; i < a.length; i++) {
+      if (!DateUtils.isSameDay(a[i], b[i])) return false;
+    }
+    return true;
+  }
+
+  void _syncStreakFromCalories({bool allowAwardToday = true}) {
+    final today = DateUtils.dateOnly(DateTime.now());
+    final selected = DateUtils.dateOnly(_selectedDate);
+    if (!DateUtils.isSameDay(selected, today)) return;
+
+    final reachedGoalToday =
+        dailyCalories > 0 && consumedCalories >= dailyCalories;
+
+    final updatedDates = _streakDates.map(DateUtils.dateOnly).toList()
+      ..sort((a, b) => a.compareTo(b));
+
+    final hasToday = updatedDates.any((d) => DateUtils.isSameDay(d, today));
+    final oldCounter = fireCounter;
+    final canAwardToday = allowAwardToday && !_hadReachedGoalToday;
+    final justCompletedToday = reachedGoalToday && !hasToday && canAwardToday;
+
+    if (justCompletedToday) {
+      updatedDates.add(today);
+      updatedDates.sort((a, b) => a.compareTo(b));
+    } else if (!reachedGoalToday && hasToday) {
+      updatedDates.removeWhere((d) => DateUtils.isSameDay(d, today));
+    }
+
+    final newCounter = _calculateConsecutiveStreak(updatedDates, today);
+    final newLastAwarded = updatedDates.isEmpty ? null : updatedDates.last;
+
+    final hasCounterChanged = newCounter != fireCounter;
+    final hasDatesChanged = !_sameDateLists(updatedDates, _streakDates);
+    final hasLastAwardedChanged = !DateUtils.isSameDay(
+      newLastAwarded,
+      _lastStreakAwardedDate,
+    );
+
+    if (!hasCounterChanged && !hasDatesChanged && !hasLastAwardedChanged) {
+      if (allowAwardToday) {
+        _hadReachedGoalToday = reachedGoalToday;
+        _isFirstStreakEvaluation = false;
+      }
+      return;
+    }
+
+    if (!mounted) return;
+    setState(() {
+      fireCounter = newCounter;
+      _streakDates = updatedDates;
+      _lastStreakAwardedDate = newLastAwarded;
+    });
+
+    _syncStreakToServer(streakCount: newCounter, streakDates: updatedDates);
+
+    final awardedToday = DateUtils.isSameDay(newLastAwarded, today);
+    final shouldShowGainPopup =
+        allowAwardToday &&
+        newCounter > oldCounter &&
+        awardedToday &&
+        !DateUtils.isSameDay(_lastGainPopupDate, today);
+
+    if (allowAwardToday) {
+      _hadReachedGoalToday = reachedGoalToday;
+      _isFirstStreakEvaluation = false;
+    }
+
+    if (shouldShowGainPopup) {
+      if (_isCurrentHomeRoute) {
+        _lastGainPopupDate = today;
+        _showStreakGainPopup(newCounter);
+      } else {
+        _queueGainPopup(newCounter);
+      }
+    }
   }
 
   void _syncMealCardsFromProvider() {
@@ -1702,48 +2030,80 @@ class _HomeScreenState extends State<HomeScreen>
   }
 
   Widget _buildStreakFireBadge() {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-      decoration: BoxDecoration(
-        color: AppColors.white,
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: _showFireStreakDialog,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.babyBlueLight),
-        boxShadow: [
-          BoxShadow(
-            color: AppColors.navy.withValues(alpha: 0.04),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+          decoration: BoxDecoration(
+            color: AppColors.white,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: AppColors.babyBlueLight),
+            boxShadow: [
+              BoxShadow(
+                color: AppColors.navy.withValues(alpha: 0.04),
+                blurRadius: 10,
+                offset: const Offset(0, 4),
+              ),
+            ],
           ),
-        ],
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              SizedBox(
+                width: 22,
+                height: 22,
+                child: Image.asset(
+                  'assets/icons/flame.png',
+                  fit: BoxFit.contain,
+                  errorBuilder: (_, __, ___) {
+                    return const Icon(
+                      Icons.local_fire_department_rounded,
+                      size: 20,
+                      color: AppColors.fatOrange,
+                    );
+                  },
+                ),
+              ),
+              const SizedBox(width: 6),
+              Text(
+                '$fireCounter',
+                style: const TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w900,
+                  color: AppColors.deepBlue,
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          SizedBox(
-            width: 22,
-            height: 22,
-            child: Image.asset(
-              'assets/icons/flame.png',
-              fit: BoxFit.contain,
-              errorBuilder: (_, __, ___) {
-                return const Icon(
-                  Icons.local_fire_department_rounded,
-                  size: 20,
-                  color: AppColors.fatOrange,
-                );
-              },
-            ),
-          ),
-          const SizedBox(width: 6),
-          Text(
-            '$fireCounter',
-            style: const TextStyle(
-              fontSize: 12,
-              fontWeight: FontWeight.w900,
-              color: AppColors.deepBlue,
-            ),
-          ),
-        ],
+    );
+  }
+
+  Future<void> _showFireStreakDialog() async {
+    final today = DateUtils.dateOnly(DateTime.now());
+    final selected = DateUtils.dateOnly(_selectedDate);
+    final isGoalReached =
+        DateUtils.isSameDay(today, selected) &&
+        dailyCalories > 0 &&
+        consumedCalories >= dailyCalories;
+
+    await showDialog<void>(
+      context: context,
+      barrierDismissible: true,
+      barrierColor: Colors.black.withValues(alpha: 0.35),
+      builder: (_) => Dialog(
+        backgroundColor: Colors.transparent,
+        insetPadding: const EdgeInsets.symmetric(horizontal: 20),
+        child: FireStreakDialogCard(
+          streakCount: fireCounter,
+          selectedDate: today,
+          isGoalReached: isGoalReached,
+          streakDates: _streakDates,
+        ),
       ),
     );
   }
@@ -1862,6 +2222,12 @@ class _HomeScreenState extends State<HomeScreen>
   Widget build(BuildContext context) {
     context.watch<UserProvider>();
     context.watch<HomeProvider>();
+
+    if (_hasPendingGainPopup) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _tryShowPendingGainPopup();
+      });
+    }
 
     if (isLoading) {
       return const Scaffold(

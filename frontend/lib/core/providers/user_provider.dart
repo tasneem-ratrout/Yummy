@@ -104,6 +104,40 @@ class UserProvider extends ChangeNotifier {
     }
   }
 
+  Future<Map<String, dynamic>> syncStreak({
+    required int streakCount,
+    required List<DateTime> streakDates,
+  }) async {
+    final response = await _authService.updateStreak(
+      streakCount: streakCount,
+      streakDates: streakDates,
+    );
+
+    if (response['error'] == true) {
+      return response;
+    }
+
+    final streakData = response['streak'] as Map<String, dynamic>?;
+    if (_user != null && streakData != null) {
+      final userMap = Map<String, dynamic>.from(_user!);
+      final profileMap = Map<String, dynamic>.from(
+        userMap['profile'] as Map<String, dynamic>? ?? {},
+      );
+
+      profileMap['streak_count'] = streakData['streak_count'] ?? streakCount;
+      profileMap['streak_dates'] =
+          (streakData['streak_dates'] as List<dynamic>? ?? [])
+              .map((e) => e.toString())
+              .toList();
+
+      userMap['profile'] = profileMap;
+      _user = userMap;
+      notifyListeners();
+    }
+
+    return response;
+  }
+
   void clear() {
     _user = null;
     notifyListeners();

@@ -286,6 +286,41 @@ class AuthService {
     }
   }
 
+  Future<Map<String, dynamic>> updateStreak({
+    required int streakCount,
+    required List<DateTime> streakDates,
+  }) async {
+    try {
+      final token = await getToken();
+      if (token == null) {
+        return {'message': 'No authentication token found', 'error': true};
+      }
+
+      final response = await http
+          .patch(
+            Uri.parse('$baseUrl/user-profile/streak'),
+            headers: await _buildHeaders(token: token),
+            body: jsonEncode({
+              'streak_count': streakCount,
+              'streak_dates': streakDates
+                  .map(
+                    (date) => DateTime(
+                      date.year,
+                      date.month,
+                      date.day,
+                    ).toIso8601String(),
+                  )
+                  .toList(),
+            }),
+          )
+          .timeout(timeoutDuration);
+
+      return _parseResponse(response.body);
+    } catch (e) {
+      return _handleError(e);
+    }
+  }
+
   Future<Map<String, dynamic>> sendResetCode({required String email}) async {
     try {
       print('📤 Sending reset code to: $email');
