@@ -312,4 +312,48 @@ const updateMyStreak = async (req, res) => {
   }
 };
 
-module.exports = { createOrUpdateProfile, getMyProfile, updateMyStreak };
+const getUsersStreaks = async (req, res) => {
+  try {
+    const users = await User.find({}).select("name").sort({ createdAt: -1 }).lean();
+
+    if (!users.length) {
+      return res.status(200).json({ users: [] });
+    }
+
+    const userIds = users.map((user) => user._id);
+    const profiles = await UserProfile.find({ user_id: { $in: userIds } }).lean();
+    const profileMap = new Map(
+      profiles.map((profile) => [profile.user_id.toString(), profile])
+    );
+
+    const baseUrl = `${req.protocol}://${req.get("host")}`;
+
+    const payload = users.map((user) => {
+      const profile = profileMap.get(user._id.toString());
+      const imagePath = (profile?.image || "").toString();
+
+      return {
+        id: user._id,
+        name: (user.name || "User").toString(),
+        streak_count: Number(profile?.streak_count || 0),
+        image_url: imagePath
+          ? `${baseUrl}${imagePath.startsWith("/") ? imagePath : `/${imagePath}`}`
+          : "",
+      };
+    });
+
+    return res.status(200).json({ users: payload });
+  } catch (error) {
+    return res.status(500).json({
+      message: "Server error",
+      error: error.message,
+    });
+  }
+};
+
+module.exports = {
+  createOrUpdateProfile,
+  getMyProfile,
+  updateMyStreak,
+  getUsersStreaks,
+};

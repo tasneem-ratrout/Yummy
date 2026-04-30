@@ -321,6 +321,26 @@ class AuthService {
     }
   }
 
+  Future<Map<String, dynamic>> getUsersStreaks() async {
+    try {
+      final token = await getToken();
+      if (token == null) {
+        return {'message': 'No authentication token found', 'error': true};
+      }
+
+      final response = await http
+          .get(
+            Uri.parse('$baseUrl/user-profile/users-streaks'),
+            headers: await _buildHeaders(token: token),
+          )
+          .timeout(timeoutDuration);
+
+      return _parseResponse(response.body);
+    } catch (e) {
+      return _handleError(e);
+    }
+  }
+
   Future<Map<String, dynamic>> sendResetCode({required String email}) async {
     try {
       print('📤 Sending reset code to: $email');
