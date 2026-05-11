@@ -314,33 +314,40 @@ const updateMyStreak = async (req, res) => {
 
 const getUsersStreaks = async (req, res) => {
   try {
-    const users = await User.find({}).select("name").sort({ createdAt: -1 }).lean();
+    const users = await User.find({ role: "user" }).select("name").sort({ createdAt: -1 }).lean();
 
     if (!users.length) {
       return res.status(200).json({ users: [] });
     }
 
     const userIds = users.map((user) => user._id);
-    const profiles = await UserProfile.find({ user_id: { $in: userIds } }).lean();
-    const profileMap = new Map(
-      profiles.map((profile) => [profile.user_id.toString(), profile])
-    );
+    const profiles = await UserProfile.find({
+      user_id: { $in: userIds },
+      streak_count: { $gt: 0 },
+    })
+      .select("gender image streak_count user_id")
+      .sort({ streak_count: -1, updatedAt: -1 })
+      .lean();
+    const userMap = new Map(users.map((user) => [user._id.toString(), user]));
 
     const baseUrl = `${req.protocol}://${req.get("host")}`;
 
-    const payload = users.map((user) => {
-      const profile = profileMap.get(user._id.toString());
-      const imagePath = (profile?.image || "").toString();
+    const payload = profiles
+      .map((profile) => {
+      const user = userMap.get(profile.user_id.toString());
+      const imagePath = (profile.image || "").toString();
 
       return {
-        id: user._id,
-        name: (user.name || "User").toString(),
-        streak_count: Number(profile?.streak_count || 0),
+        id: user?._id || profile.user_id,
+        name: (user?.name || "User").toString(),
+        gender: (profile.gender || "").toString(),
+        streak_count: Number(profile.streak_count || 0),
         image_url: imagePath
           ? `${baseUrl}${imagePath.startsWith("/") ? imagePath : `/${imagePath}`}`
           : "",
       };
-    });
+      })
+      .sort((a, b) => b.streak_count - a.streak_count);
 
     return res.status(200).json({ users: payload });
   } catch (error) {
@@ -351,9 +358,29 @@ const getUsersStreaks = async (req, res) => {
   }
 };
 
+const searchUsers = async (req, res) => {
+  try {
+    const q = (req.query.q || '').toString().trim();
+    if (!q) return res.status(200).json({ users: [] });
+
+    const regex = new RegExp(q.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i');
+
+    const users = await User.find({ role: 'user', $or: [{ name: regex }, { email: regex }] })
+      .select('name email')
+      .limit(50)
+      .lean();
+
+    const payload = users.map((u) => ({ id: u._id, name: u.name || 'User', email: u.email || '' }));
+    return res.status(200).json({ users: payload });
+  } catch (error) {
+    return res.status(500).json({ message: 'Server error', error: error.message });
+  }
+};
+
 module.exports = {
   createOrUpdateProfile,
   getMyProfile,
   updateMyStreak,
   getUsersStreaks,
+  searchUsers,
 };

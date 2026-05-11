@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../core/config/app_config.dart';
 import '../core/theme/app_colors.dart';
 import '../features/profile/personal_details_screen.dart';
+import '../features/profile/user_profile_screen.dart';
 import '../features/auth/welcome_screen.dart';
 
 class AppDrawer extends StatelessWidget {
@@ -248,8 +249,11 @@ class AppDrawer extends StatelessWidget {
                         return;
                       }
 
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text("Profile page later")),
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => const UserProfileScreen(),
+                        ),
                       );
                     },
                   ),

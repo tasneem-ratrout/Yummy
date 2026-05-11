@@ -3,6 +3,7 @@ const jwt = require("jsonwebtoken");
 const crypto = require("crypto");
 const User = require("../models/User");
 const UserProfile = require("../models/UserProfile");
+const UserFollow = require("../models/UserFollow");
 const { sendResetCodeEmail } = require("../services/emailService");
 
 // Error handler wrapper
@@ -349,17 +350,32 @@ const getMe = async (req, res) => {
     }
 
     const profile = await UserProfile.findOne({ user_id: userId });
-
-    res.status(200).json({
-      message: "User fetched successfully",
-      user: {
-        id: user._id,
-        name: user.name,
-        email: user.email,
-        role: user.role,
-        profile: profile || null,
-      },
+    const followerCount = await UserFollow.countDocuments({
+      following_id: userId,
     });
+    const followingCount = await UserFollow.countDocuments({
+      follower_id: userId,
+    });
+
+      const baseUrl = `${req.protocol}://${req.get("host")}`;
+
+      res.status(200).json({
+        message: "User fetched successfully",
+        user: {
+          id: user._id,
+          name: user.name,
+          email: user.email,
+          role: user.role,
+          followerCount,
+          followingCount,
+          profile: profile
+            ? {
+                ...profile.toObject(),
+                image_url: profile.image ? `${baseUrl}${profile.image}` : "",
+              }
+            : null,
+        },
+      });
   } catch (error) {
     handleError(error, res);
   }

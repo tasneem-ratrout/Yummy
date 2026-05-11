@@ -7,7 +7,7 @@ import '../../core/config/app_config.dart';
 import '../../core/theme/app_colors.dart';
 import '../../shared/custom_bottom_nav.dart';
 import '../../shared/app_drawer.dart';
-import '../profile/personal_details_screen.dart';
+import '../profile/user_profile_screen.dart';
 import '../auth/welcome_screen.dart';
 import '../add_meal/add_meal_screen.dart';
 import 'widgets/fire_streak_dialog_card.dart';
@@ -1436,7 +1436,7 @@ class _HomeScreenState extends State<HomeScreen>
   void _goToProfile() {
     Navigator.push(
       context,
-      MaterialPageRoute(builder: (_) => const PersonalDetailsScreen()),
+      MaterialPageRoute(builder: (_) => const UserProfileScreen()),
     );
   }
 
@@ -2245,7 +2245,11 @@ class _HomeScreenState extends State<HomeScreen>
       key: _scaffoldKey,
       extendBody: true,
       backgroundColor: AppColors.background,
-      endDrawer: AppDrawer(user: user, onLogoutTap: _logout),
+      endDrawer: AppDrawer(
+        user: user,
+        onProfileTap: _goToProfile,
+        onLogoutTap: _logout,
+      ),
       body: SafeArea(
         bottom: false,
         child: Padding(

@@ -3,6 +3,8 @@ import 'package:provider/provider.dart';
 import 'core/providers/auth_provider.dart';
 import 'core/providers/home_provider.dart';
 import 'core/providers/user_provider.dart';
+import 'core/providers/like_provider.dart';
+import 'core/providers/follow_provider.dart';
 import 'features/auth/splash_screen.dart';
 
 void main() {
@@ -12,6 +14,8 @@ void main() {
         ChangeNotifierProvider(create: (_) => AuthProvider()..initialize()),
         ChangeNotifierProvider(create: (_) => UserProvider()),
         ChangeNotifierProvider(create: (_) => HomeProvider()),
+        ChangeNotifierProvider(create: (_) => LikeProvider()),
+        ChangeNotifierProvider(create: (_) => FollowProvider()),
       ],
       child: const YummyApp(),
     ),
