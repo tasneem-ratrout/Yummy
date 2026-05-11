@@ -33,6 +33,10 @@ class AuthProvider extends ChangeNotifier {
         ? AuthStatus.authenticated
         : AuthStatus.unauthenticated;
 
+    if (_status == AuthStatus.authenticated) {
+      await _authService.registerDeviceToken();
+    }
+
     notifyListeners();
   }
 
@@ -56,6 +60,10 @@ class AuthProvider extends ChangeNotifier {
         ? AuthStatus.authenticated
         : AuthStatus.unauthenticated;
 
+    if (_status == AuthStatus.authenticated) {
+      await _authService.registerDeviceToken();
+    }
+
     _setLoading(false);
     return result;
   }
@@ -76,6 +84,10 @@ class AuthProvider extends ChangeNotifier {
     _status = (_token != null && _token!.isNotEmpty)
         ? AuthStatus.authenticated
         : AuthStatus.unauthenticated;
+
+    if (_status == AuthStatus.authenticated) {
+      await _authService.registerDeviceToken();
+    }
 
     _setLoading(false);
     return result;

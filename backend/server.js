@@ -1,4 +1,3 @@
-
 const express = require("express");
 const cors = require("cors");
 const dotenv = require("dotenv");
@@ -11,26 +10,57 @@ connectDB();
 
 const app = express();
 
+app.use((req, res, next) => {
+  console.log("🔥 REQUEST:", req.method, req.originalUrl);
+  next();
+});
+
 app.use(helmet());
 
 // Redirect to HTTPS in production
 app.use((req, res, next) => {
-  if (process.env.NODE_ENV === "production" && req.header("x-forwarded-proto") !== "https") {
+  if (
+    process.env.NODE_ENV === "production" &&
+    req.header("x-forwarded-proto") !== "https"
+  ) {
     return res.redirect(`https://${req.header("host")}${req.url}`);
   }
   next();
 });
 
-app.use(cors({
-  origin: process.env.FRONTEND_URL || "http://localhost:3000",
-  credentials: true,
-  optionsSuccessStatus: 200,
-  methods: ["GET", "POST", "PATCH", "DELETE", "OPTIONS"],
-  allowedHeaders: ["Content-Type", "Authorization"]
-}));
+// Allow Flutter mobile app + Flutter Web from laptop/iPhone
+const allowedOrigins = [
+  "http://localhost:3000",
+  "http://localhost:8080",
+  "http://127.0.0.1:8080",
+  "http://192.168.1.50:8080",
+
+  // Firebase Hosting Web App
+  "https://yummy-d1eb2.web.app",
+  "https://yummy-d1eb2.firebaseapp.com",
+];
+
+app.use(
+  cors({
+    origin: function (origin, callback) {
+      // Mobile app / Postman sometimes send no origin, so allow them
+      if (!origin || allowedOrigins.includes(origin)) {
+        return callback(null, true);
+      }
+
+      console.log("❌ CORS blocked origin:", origin);
+      return callback(new Error(`CORS blocked this origin: ${origin}`));
+    },
+    credentials: true,
+    optionsSuccessStatus: 200,
+    methods: ["GET", "POST", "PATCH", "DELETE", "OPTIONS"],
+    allowedHeaders: ["Content-Type", "Authorization"],
+  })
+);
 
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+
 // Serve uploaded profile images
 app.use("/uploads", express.static(path.join(__dirname, "uploads")));
 
@@ -41,11 +71,14 @@ app.get("/", (req, res) => {
 app.use("/api/auth", require("./routes/authRoutes"));
 app.use("/api/user-profile", require("./routes/userProfileRoutes"));
 app.use("/api/follow", require("./routes/followRoutes"));
+app.use("/api/notifications", require("./routes/notificationRoutes"));
+
 app.use("/api/meals", (req, res, next) => {
   console.log(`MEALS ${req.method} ${req.originalUrl}`);
   next();
 });
 app.use("/api/meals", require("./routes/mealRoutes"));
+
 app.use("/api/posts", (req, res, next) => {
   console.log(`📮 POSTS ${req.method} ${req.originalUrl}`);
   next();
@@ -60,12 +93,12 @@ app.use((req, res) => {
 // Global Error Handler
 app.use((err, req, res, next) => {
   console.error("Error:", err.message);
-  
-  // Don't expose internal error details in production
-  const message = process.env.NODE_ENV === "production" 
-    ? "An error occurred. Please try again later."
-    : err.message;
-    
+
+  const message =
+    process.env.NODE_ENV === "production"
+      ? "An error occurred. Please try again later."
+      : err.message;
+
   res.status(err.status || 500).json({ message });
 });
 

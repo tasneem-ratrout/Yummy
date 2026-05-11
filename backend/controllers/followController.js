@@ -1,6 +1,7 @@
 const User = require("../models/User");
 const UserProfile = require("../models/UserProfile");
 const UserFollow = require("../models/UserFollow");
+const { createNotification } = require("../services/notificationService");
 
 const toObjectIdString = (value) => value?.toString?.() ?? `${value ?? ""}`;
 
@@ -54,6 +55,15 @@ exports.toggleFollow = async (req, res) => {
         following_id: normalizedTargetUserId,
       });
       isFollowing = true;
+
+      const actor = await User.findById(currentUserId).select("name").lean();
+      await createNotification({
+        recipientId: normalizedTargetUserId,
+        actorId: currentUserId,
+        type: "follow",
+        title: "New follower",
+        body: `${actor?.name || 'Someone'} started following you`,
+      });
     }
 
     const followerCount = await UserFollow.countDocuments({

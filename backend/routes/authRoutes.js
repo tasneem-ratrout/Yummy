@@ -6,6 +6,7 @@ const { authLimiter, resetCodeLimiter } = require("../middleware/rateLimitMiddle
 const {
   register,
   login,
+  registerDeviceToken,
   updateUserName,
   sendResetCode,
   verifyResetCode,
@@ -18,6 +19,7 @@ router.post("/register", authLimiter, register);
 router.post("/login", authLimiter, login);
 router.get("/me", verifyToken, getMe);
 router.patch("/update-name", verifyToken, updateUserName);
+router.post("/device-token", verifyToken, registerDeviceToken);
 
 // Password reset with strict rate limiting
 router.post("/forgot-password/send-code", resetCodeLimiter, sendResetCode);

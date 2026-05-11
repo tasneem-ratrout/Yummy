@@ -1,5 +1,8 @@
 import 'dart:convert';
 import 'dart:io';
+
+import 'package:firebase_messaging/firebase_messaging.dart';
+import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import '../config/app_config.dart';
@@ -11,11 +14,11 @@ class AuthService {
   static const String _userIdKey = 'userId';
   static const String _rememberMeKey = 'rememberMe';
   static const String _hiddenUsersKey = 'hiddenUsers';
+  static bool _pushTokenListenerConfigured = false;
 
   static String? _sessionToken;
   static String? _sessionUserId;
 
-  /// Parse JSON response safely with error handling
   static Map<String, dynamic> _parseResponse(String body) {
     try {
       return jsonDecode(body) as Map<String, dynamic>;
@@ -26,7 +29,6 @@ class AuthService {
     }
   }
 
-  /// Build authorization headers
   static Future<Map<String, String>> _buildHeaders({String? token}) async {
     final headers = {'Content-Type': 'application/json'};
 
@@ -37,7 +39,6 @@ class AuthService {
     return headers;
   }
 
-  /// Handle HTTP errors
   static Map<String, dynamic> _handleError(dynamic error) {
     return {
       'message': 'Network error. Please check your connection.',
@@ -74,6 +75,8 @@ class AuthService {
         await prefs.setString(_tokenKey, data['token']);
         await prefs.setString(_userIdKey, data['userId'].toString());
         await prefs.setBool(_rememberMeKey, true);
+
+        await registerDeviceToken();
       }
 
       return data;
@@ -113,6 +116,8 @@ class AuthService {
         }
 
         await prefs.setBool(_rememberMeKey, rememberMe);
+
+        await registerDeviceToken();
       }
 
       return data;
@@ -156,6 +161,77 @@ class AuthService {
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove(_tokenKey);
     await prefs.remove(_userIdKey);
+  }
+
+  Future<void> registerDeviceToken() async {
+    try {
+      final authToken = await getToken();
+      if (authToken == null || authToken.trim().isEmpty) {
+        print('⚠️ No auth token, cannot register FCM token');
+        return;
+      }
+
+      final settings = await FirebaseMessaging.instance.requestPermission(
+        alert: true,
+        badge: true,
+        sound: true,
+      );
+
+      print('🔔 Notification permission: ${settings.authorizationStatus}');
+
+      String? fcmToken;
+
+      if (kIsWeb) {
+        fcmToken = await FirebaseMessaging.instance.getToken(
+          vapidKey:
+              'BH6dtgwzQsyLAMbNVkELiI99n-kedBjhhCWSqBujXEQr3XDNS_QEtkzf4e6mZDBjfy4YkywZDn8rxlIpU8-RoXk',
+        );
+      } else {
+        fcmToken = await FirebaseMessaging.instance.getToken();
+      }
+
+      print('🔥 FCM Token: $fcmToken');
+
+      if (fcmToken != null && fcmToken.trim().isNotEmpty) {
+        await _sendDeviceTokenToBackend(fcmToken.trim(), authToken);
+      }
+
+      if (!_pushTokenListenerConfigured) {
+        _pushTokenListenerConfigured = true;
+
+        FirebaseMessaging.instance.onTokenRefresh.listen((newToken) async {
+          final token = await getToken();
+
+          if (token == null || token.trim().isEmpty) {
+            return;
+          }
+
+          await _sendDeviceTokenToBackend(newToken.trim(), token);
+        });
+      }
+    } catch (e) {
+      print('⚠️ registerDeviceToken failed: $e');
+    }
+  }
+
+  Future<void> _sendDeviceTokenToBackend(
+    String fcmToken,
+    String authToken,
+  ) async {
+    final response = await http
+        .post(
+          Uri.parse('$baseUrl/auth/device-token'),
+          headers: await _buildHeaders(token: authToken),
+          body: jsonEncode({'token': fcmToken}),
+        )
+        .timeout(timeoutDuration);
+
+    print('📤 Save FCM token status: ${response.statusCode}');
+    print('📤 Save FCM token body: ${response.body}');
+
+    if (response.statusCode >= 400) {
+      print('⚠️ Saving device token failed: ${response.body}');
+    }
   }
 
   Future<List<Map<String, dynamic>>> getHiddenUsers() async {
@@ -409,9 +485,11 @@ class AuthService {
       final uri = Uri.parse(
         '$baseUrl/user-profile/search?q=${Uri.encodeQueryComponent(query)}',
       );
+
       final response = await http
           .get(uri, headers: await _buildHeaders(token: token))
           .timeout(timeoutDuration);
+
       return _parseResponse(response.body);
     } catch (e) {
       return _handleError(e);
@@ -442,8 +520,6 @@ class AuthService {
     double? fat,
     double? carbs,
     double? protein,
-
-    /// `public` or `followers_only` (matches backend Post.visibility)
     String visibility = 'public',
   }) async {
     try {
@@ -451,30 +527,37 @@ class AuthService {
       if (token == null) return {'message': 'No token', 'error': true};
 
       print('🔗 POST $baseUrl/posts');
+
       if (imageFile != null) {
         print('📷 Uploading with image: ${imageFile.path}');
+
         final request = http.MultipartRequest(
           'POST',
           Uri.parse('$baseUrl/posts'),
         );
+
         request.headers['Authorization'] = 'Bearer $token';
+
         if (text != null) request.fields['text'] = text;
         if (authorName.isNotEmpty) request.fields['authorName'] = authorName;
-        if (authorImageUrl != null)
+        if (authorImageUrl != null) {
           request.fields['authorImageUrl'] = authorImageUrl;
+        }
         if (calories != null) request.fields['calories'] = calories.toString();
         if (fat != null) request.fields['fat'] = fat.toString();
         if (carbs != null) request.fields['carbs'] = carbs.toString();
         if (protein != null) request.fields['protein'] = protein.toString();
-        request.fields['visibility'] = visibility == 'followers_only'
-            ? 'followers_only'
-            : 'public';
+
+        request.fields['visibility'] =
+            visibility == 'followers_only' ? 'followers_only' : 'public';
 
         request.files.add(
           await http.MultipartFile.fromPath('image', imageFile.path),
         );
+
         final streamed = await request.send().timeout(timeoutDuration);
         final response = await http.Response.fromStream(streamed);
+
         return _parseResponse(response.body);
       }
 
@@ -486,9 +569,8 @@ class AuthService {
         if (fat != null) 'fat': fat,
         if (carbs != null) 'carbs': carbs,
         if (protein != null) 'protein': protein,
-        'visibility': visibility == 'followers_only'
-            ? 'followers_only'
-            : 'public',
+        'visibility':
+            visibility == 'followers_only' ? 'followers_only' : 'public',
       };
 
       final response = await http
@@ -537,13 +619,26 @@ class AuthService {
   }) async {
     try {
       final token = await getToken();
-      if (token == null) return {'error': true, 'message': 'No token'};
+
+      if (token == null) {
+        print('❌ No token found for addPostComment');
+        return {'error': true, 'message': 'No token'};
+      }
+
+      final url = '$baseUrl/posts/$postId/comment';
 
       print('💬 Adding comment to post $postId');
+      print('🔗 Comment URL: $url');
+      print('📦 Comment body: ${jsonEncode({
+            'authorName': authorName,
+            'authorImageUrl': authorImageUrl,
+            'text': text,
+          })}');
+      print('🔑 Token: ${token.substring(0, 10)}...');
 
       final response = await http
           .post(
-            Uri.parse('$baseUrl/posts/$postId/comment'),
+            Uri.parse(url),
             headers: await _buildHeaders(token: token),
             body: jsonEncode({
               'authorName': authorName,
@@ -553,8 +648,12 @@ class AuthService {
           )
           .timeout(timeoutDuration);
 
+      print('📥 Comment Status Code: ${response.statusCode}');
+      print('📥 Comment Response Body: ${response.body}');
+
       return _parseResponse(response.body);
     } catch (e) {
+      print('❌ Error in addPostComment: $e');
       return _handleError(e);
     }
   }
@@ -596,6 +695,7 @@ class AuthService {
 
       final data = _parseResponse(response.body);
       data['statusCode'] = response.statusCode;
+
       return data;
     } catch (e) {
       print('❌ Error in sendResetCode: $e');
@@ -624,6 +724,7 @@ class AuthService {
 
       final data = _parseResponse(response.body);
       data['statusCode'] = response.statusCode;
+
       return data;
     } catch (e) {
       print('❌ Error in verifyResetCode: $e');
@@ -652,6 +753,7 @@ class AuthService {
 
       final data = _parseResponse(response.body);
       data['statusCode'] = response.statusCode;
+
       return data;
     } catch (e) {
       print('❌ Error in resetPassword: $e');
@@ -664,6 +766,7 @@ class AuthService {
   }) async {
     try {
       final token = await getToken();
+
       if (token == null) {
         print('❌ No token found');
         return {'message': 'No authentication token found', 'error': true};
@@ -694,6 +797,7 @@ class AuthService {
   Future<Map<String, dynamic>> getFollowers({required String userId}) async {
     try {
       final token = await getToken();
+
       if (token == null) {
         return {'message': 'No authentication token found', 'error': true};
       }
@@ -716,6 +820,7 @@ class AuthService {
   Future<Map<String, dynamic>> getFollowing({required String userId}) async {
     try {
       final token = await getToken();
+
       if (token == null) {
         return {'message': 'No authentication token found', 'error': true};
       }
@@ -740,6 +845,7 @@ class AuthService {
   }) async {
     try {
       final token = await getToken();
+
       if (token == null) {
         return {'message': 'No authentication token found', 'error': true};
       }
@@ -760,6 +866,7 @@ class AuthService {
   Future<Map<String, dynamic>> getUserStats({required String userId}) async {
     try {
       final token = await getToken();
+
       if (token == null) {
         return {'message': 'No authentication token found', 'error': true};
       }
@@ -767,6 +874,71 @@ class AuthService {
       final response = await http
           .get(
             Uri.parse('$baseUrl/follow/$userId/stats'),
+            headers: await _buildHeaders(token: token),
+          )
+          .timeout(timeoutDuration);
+
+      return _parseResponse(response.body);
+    } catch (e) {
+      return _handleError(e);
+    }
+  }
+
+  Future<Map<String, dynamic>> getNotifications() async {
+    try {
+      final token = await getToken();
+
+      if (token == null) {
+        return {'message': 'No authentication token found', 'error': true};
+      }
+
+      final response = await http
+          .get(
+            Uri.parse('$baseUrl/notifications'),
+            headers: await _buildHeaders(token: token),
+          )
+          .timeout(timeoutDuration);
+
+      return _parseResponse(response.body);
+    } catch (e) {
+      return _handleError(e);
+    }
+  }
+
+  Future<Map<String, dynamic>> markNotificationAsRead({
+    required String notificationId,
+  }) async {
+    try {
+      final token = await getToken();
+
+      if (token == null) {
+        return {'message': 'No authentication token found', 'error': true};
+      }
+
+      final response = await http
+          .patch(
+            Uri.parse('$baseUrl/notifications/$notificationId/read'),
+            headers: await _buildHeaders(token: token),
+          )
+          .timeout(timeoutDuration);
+
+      return _parseResponse(response.body);
+    } catch (e) {
+      return _handleError(e);
+    }
+  }
+
+  Future<Map<String, dynamic>> markAllNotificationsAsRead() async {
+    try {
+      final token = await getToken();
+
+      if (token == null) {
+        return {'message': 'No authentication token found', 'error': true};
+      }
+
+      final response = await http
+          .patch(
+            Uri.parse('$baseUrl/notifications/read-all'),
             headers: await _buildHeaders(token: token),
           )
           .timeout(timeoutDuration);

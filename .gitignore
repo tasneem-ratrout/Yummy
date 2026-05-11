@@ -1,0 +1,17 @@
+# secrets
+backend/.env
+backend/serviceAccount.json
+
+# node
+backend/node_modules/
+node_modules/
+
+# flutter/cache/build
+frontend/build/
+frontend/.dart_tool/
+frontend/.firebase/
+frontend/.flutter-plugins
+frontend/.flutter-plugins-dependencies
+
+# uploads from local testing
+backend/uploads/

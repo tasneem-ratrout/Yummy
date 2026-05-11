@@ -5,6 +5,7 @@ const User = require("../models/User");
 const UserProfile = require("../models/UserProfile");
 const UserFollow = require("../models/UserFollow");
 const { sendResetCodeEmail } = require("../services/emailService");
+const { addDeviceToken } = require("../services/notificationService");
 
 // Error handler wrapper
 const handleError = (error, res) => {
@@ -127,6 +128,29 @@ const login = async (req, res) => {
         email: user.email,
         role: user.role,
       },
+    });
+  } catch (error) {
+    handleError(error, res);
+  }
+};
+
+const registerDeviceToken = async (req, res) => {
+  try {
+    const userId = req.user?.userId;
+    const { token } = req.body;
+
+    if (!userId) {
+      return res.status(401).json({ message: "Unauthorized" });
+    }
+
+    if (!token || !token.trim()) {
+      return res.status(400).json({ message: "Device token is required" });
+    }
+
+    await addDeviceToken(userId, token.trim());
+
+    res.status(200).json({
+      message: "Device token saved successfully",
     });
   } catch (error) {
     handleError(error, res);
@@ -384,6 +408,7 @@ const getMe = async (req, res) => {
 module.exports = {
   register,
   login,
+  registerDeviceToken,
   updateUserName,
   sendResetCode,
   verifyResetCode,

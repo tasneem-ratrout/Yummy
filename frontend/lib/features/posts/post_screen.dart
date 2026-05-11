@@ -10,6 +10,7 @@ import 'package:provider/provider.dart';
 import '../../core/providers/like_provider.dart';
 import '../../core/config/app_config.dart';
 import '../../core/theme/app_colors.dart';
+import '../notifications/notifications_screen.dart';
 import '../profile/user_profile_screen.dart';
 import '../../shared/custom_bottom_nav.dart';
 
@@ -502,200 +503,214 @@ class _PostScreenState extends State<PostScreen> with WidgetsBindingObserver {
   }
 
   Widget _buildUserSearchSection() {
-    final query = _userSearchController.text.trim();
-    final matchedUsers = _matchedUsers;
+  final query = _userSearchController.text.trim();
+  final matchedUsers = _matchedUsers;
 
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(14, 12, 14, 10),
-      child: Column(
-        children: [
-          LayoutBuilder(
-            builder: (context, constraints) {
-              const buttonSpace = 54.0; // 44 button + 10 gap
-              final maxSearchWidth = (constraints.maxWidth - buttonSpace).clamp(
-                120.0,
-                double.infinity,
-              );
-              final collapsedWidth = maxSearchWidth < 170
-                  ? maxSearchWidth
-                  : 170.0;
-              final expanded = _isSearchExpanded || query.isNotEmpty;
+  return Padding(
+    padding: const EdgeInsets.fromLTRB(14, 12, 8, 10),
+    child: Column(
+      children: [
+        LayoutBuilder(
+          builder: (context, constraints) {
+            const buttonWidth = 44.0;
+            const gap = 10.0;
 
-              return Row(
-                children: [
-                  AnimatedContainer(
-                    duration: const Duration(milliseconds: 220),
-                    curve: Curves.easeOutCubic,
-                    width: expanded ? maxSearchWidth : collapsedWidth,
-                    height: 46,
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(999),
-                      border: Border.all(
-                        color: expanded
-                            ? const Color(0xFFC9DCF4)
-                            : const Color(0xFFDDE9F6),
+            final maxSearchWidth =
+                (constraints.maxWidth - buttonWidth - gap).clamp(
+              120.0,
+              double.infinity,
+            );
+
+            final collapsedWidth =
+                maxSearchWidth < 170 ? maxSearchWidth : 170.0;
+
+            final expanded = _isSearchExpanded || query.isNotEmpty;
+
+            return Row(
+              children: [
+                Expanded(
+                  child: Align(
+                    alignment: Alignment.centerLeft,
+                    child: AnimatedContainer(
+                      duration: const Duration(milliseconds: 220),
+                      curve: Curves.easeOutCubic,
+                      width: expanded ? maxSearchWidth : collapsedWidth,
+                      height: 46,
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(999),
+                        border: Border.all(
+                          color: expanded
+                              ? const Color(0xFFC9DCF4)
+                              : const Color(0xFFDDE9F6),
+                        ),
+                        boxShadow: [
+                          if (expanded)
+                            BoxShadow(
+                              color: const Color(0xFF93B4DF).withOpacity(0.14),
+                              blurRadius: 14,
+                              offset: const Offset(0, 4),
+                            ),
+                        ],
                       ),
-                      boxShadow: [
-                        if (expanded)
-                          BoxShadow(
-                            color: const Color(0xFF93B4DF).withOpacity(0.14),
-                            blurRadius: 14,
-                            offset: const Offset(0, 4),
+                      child: TextField(
+                        controller: _userSearchController,
+                        focusNode: _userSearchFocusNode,
+                        onTap: () {
+                          if (!_isSearchExpanded) {
+                            setState(() => _isSearchExpanded = true);
+                          }
+                        },
+                        onChanged: (val) {
+                          setState(() {});
+                          _userSearchDebounce?.cancel();
+                          final q = val.trim();
+                          if (q.length >= 2) {
+                            _userSearchDebounce = Timer(
+                              const Duration(milliseconds: 350),
+                              () {
+                                _performRemoteUserSearch(q);
+                              },
+                            );
+                          }
+                        },
+                        textInputAction: TextInputAction.search,
+                        decoration: InputDecoration(
+                          hintText: expanded ? 'Search users by name' : 'Search',
+                          hintStyle: const TextStyle(fontSize: 13),
+                          prefixIcon: const Icon(
+                            Icons.search_rounded,
+                            color: AppColors.blueGray,
+                            size: 20,
                           ),
-                      ],
-                    ),
-                    child: TextField(
-                      controller: _userSearchController,
-                      focusNode: _userSearchFocusNode,
-                      onTap: () {
-                        if (!_isSearchExpanded) {
-                          setState(() => _isSearchExpanded = true);
-                        }
-                      },
-                      onChanged: (val) {
-                        setState(() {});
-                        _userSearchDebounce?.cancel();
-                        final q = val.trim();
-                        if (q.length >= 2) {
-                          _userSearchDebounce = Timer(
-                            const Duration(milliseconds: 350),
-                            () {
-                              _performRemoteUserSearch(q);
-                            },
-                          );
-                        }
-                      },
-                      textInputAction: TextInputAction.search,
-                      decoration: InputDecoration(
-                        hintText: expanded ? 'Search users by name' : 'Search',
-                        hintStyle: const TextStyle(fontSize: 13),
-                        prefixIcon: const Icon(
-                          Icons.search_rounded,
-                          color: AppColors.blueGray,
-                          size: 20,
-                        ),
-                        suffixIcon: query.isNotEmpty
-                            ? IconButton(
-                                onPressed: () {
-                                  _userSearchController.clear();
-                                  final keepExpanded =
-                                      _userSearchFocusNode.hasFocus;
-                                  setState(() {
-                                    _isSearchExpanded = keepExpanded;
-                                  });
-                                },
-                                icon: const Icon(
-                                  Icons.close_rounded,
-                                  color: AppColors.blueGray,
-                                  size: 18,
-                                ),
-                              )
-                            : null,
-                        filled: true,
-                        fillColor: const Color(0xFFF7FAFE),
-                        contentPadding: const EdgeInsets.symmetric(
-                          horizontal: 12,
-                          vertical: 10,
-                        ),
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(999),
-                          borderSide: BorderSide.none,
+                          suffixIcon: query.isNotEmpty
+                              ? IconButton(
+                                  onPressed: () {
+                                    _userSearchController.clear();
+                                    final keepExpanded =
+                                        _userSearchFocusNode.hasFocus;
+                                    setState(() {
+                                      _isSearchExpanded = keepExpanded;
+                                    });
+                                  },
+                                  icon: const Icon(
+                                    Icons.close_rounded,
+                                    color: AppColors.blueGray,
+                                    size: 18,
+                                  ),
+                                )
+                              : null,
+                          filled: true,
+                          fillColor: const Color(0xFFF7FAFE),
+                          contentPadding: const EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 10,
+                          ),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(999),
+                            borderSide: BorderSide.none,
+                          ),
                         ),
                       ),
                     ),
                   ),
-                  // removed inline filter button to keep only floating fixed button
-                ],
-              );
-            },
-          ),
-          if (query.isNotEmpty) ...[
-            const SizedBox(height: 8),
-            if (matchedUsers.isEmpty)
-              const Padding(
-                padding: EdgeInsets.symmetric(vertical: 8),
-                child: Align(
-                  alignment: Alignment.centerLeft,
-                  child: Text(
-                    'No users found',
-                    style: TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w600,
-                      color: AppColors.blueGray,
-                    ),
+                ),
+
+                const SizedBox(width: 10),
+
+                // Settings button stays fixed on the right
+                _buildFilterFloatingButton(),
+              ],
+            );
+          },
+        ),
+
+        if (query.isNotEmpty) ...[
+          const SizedBox(height: 8),
+          if (matchedUsers.isEmpty)
+            const Padding(
+              padding: EdgeInsets.symmetric(vertical: 8),
+              child: Align(
+                alignment: Alignment.centerLeft,
+                child: Text(
+                  'No users found',
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    color: AppColors.blueGray,
                   ),
-                ),
-              )
-            else
-              Container(
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: const Color(0xFFE1EBF7)),
-                ),
-                child: ListView.separated(
-                  itemCount: matchedUsers.length,
-                  shrinkWrap: true,
-                  physics: const NeverScrollableScrollPhysics(),
-                  separatorBuilder: (_, __) =>
-                      const Divider(height: 1, indent: 54),
-                  itemBuilder: (_, index) {
-                    final user = matchedUsers[index];
-                    final userImageUrl = _resolveImageUrl(user.imageUrl);
-                    return ListTile(
-                      dense: true,
-                      leading: CircleAvatar(
-                        radius: 16,
-                        backgroundColor: AppColors.babyBlueLight,
-                        backgroundImage:
-                            (userImageUrl != null && userImageUrl.isNotEmpty)
-                            ? NetworkImage(userImageUrl)
-                            : null,
-                        child: (userImageUrl == null || userImageUrl.isEmpty)
-                            ? Text(
-                                _firstName(user.name)[0].toUpperCase(),
-                                style: const TextStyle(
-                                  fontWeight: FontWeight.w700,
-                                  color: AppColors.deepBlue,
-                                ),
-                              )
-                            : null,
-                      ),
-                      title: Text(
-                        user.name,
-                        style: const TextStyle(
-                          fontSize: 13,
-                          fontWeight: FontWeight.w700,
-                          color: AppColors.deepBlue,
-                        ),
-                      ),
-                      trailing: const Icon(
-                        Icons.arrow_forward_ios_rounded,
-                        size: 14,
-                        color: AppColors.blueGray,
-                      ),
-                      onTap: () {
-                        _userSearchController.clear();
-                        setState(() {
-                          _isSearchExpanded = false;
-                        });
-                        _openProfileAndRefresh(
-                          viewedUserId: user.id,
-                          viewedUserName: user.name,
-                          viewedUserImageUrl: userImageUrl,
-                        );
-                      },
-                    );
-                  },
                 ),
               ),
-          ],
-        ],
-      ),
-    );
-  }
+            )
+          else
+            Container(
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: const Color(0xFFE1EBF7)),
+              ),
+              child: ListView.separated(
+                itemCount: matchedUsers.length,
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                separatorBuilder: (_, __) =>
+                    const Divider(height: 1, indent: 54),
+                itemBuilder: (_, index) {
+                  final user = matchedUsers[index];
+                  final userImageUrl = _resolveImageUrl(user.imageUrl);
 
+                  return ListTile(
+                    dense: true,
+                    leading: CircleAvatar(
+                      radius: 16,
+                      backgroundColor: AppColors.babyBlueLight,
+                      backgroundImage:
+                          (userImageUrl != null && userImageUrl.isNotEmpty)
+                              ? NetworkImage(userImageUrl)
+                              : null,
+                      child: (userImageUrl == null || userImageUrl.isEmpty)
+                          ? Text(
+                              _firstName(user.name)[0].toUpperCase(),
+                              style: const TextStyle(
+                                fontWeight: FontWeight.w700,
+                                color: AppColors.deepBlue,
+                              ),
+                            )
+                          : null,
+                    ),
+                    title: Text(
+                      user.name,
+                      style: const TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w700,
+                        color: AppColors.deepBlue,
+                      ),
+                    ),
+                    trailing: const Icon(
+                      Icons.arrow_forward_ios_rounded,
+                      size: 14,
+                      color: AppColors.blueGray,
+                    ),
+                    onTap: () {
+                      _userSearchController.clear();
+                      setState(() {
+                        _isSearchExpanded = false;
+                      });
+                      _openProfileAndRefresh(
+                        viewedUserId: user.id,
+                        viewedUserName: user.name,
+                        viewedUserImageUrl: userImageUrl,
+                      );
+                    },
+                  );
+                },
+              ),
+            ),
+        ],
+      ],
+    ),
+  );
+}
   Future<void> _performRemoteUserSearch(String q) async {
     if (q.isEmpty) return;
     _lastRemoteQuery = q;
@@ -2553,11 +2568,14 @@ class _PostScreenState extends State<PostScreen> with WidgetsBindingObserver {
               _buildDrawerActionTile(
                 icon: Icons.notifications_none_rounded,
                 title: 'Notifications',
-                subtitle: 'Coming soon',
+                subtitle: 'Open your inbox',
                 onTap: () {
                   if (closeAfterSelect) Navigator.pop(context);
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Notifications coming soon')),
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => const NotificationsScreen(),
+                    ),
                   );
                 },
               ),
@@ -2947,52 +2965,48 @@ class _PostScreenState extends State<PostScreen> with WidgetsBindingObserver {
     final hasActiveFilter =
         _feedFilter != _PostFeedFilter.all ||
         _postSortOrder != _PostSortOrder.newestFirst;
-    return Material(
-      color: Colors.transparent,
-      child: Container(
-        width: 44,
-        height: 44,
-        margin: const EdgeInsets.only(right: 12, top: 12),
-        decoration: const BoxDecoration(
-          color: AppColors.white,
-          shape: BoxShape.circle,
-        ),
-        child: Stack(
-          clipBehavior: Clip.none,
-          children: [
-            Builder(
-              builder: (ctx) {
-                return IconButton(
-                  onPressed: () {
-                    final scaffold = Scaffold.maybeOf(ctx);
-                    scaffold?.openEndDrawer();
-                  },
-                  tooltip: 'Filter posts',
-                  icon: const Icon(
+
+    return Builder(
+      builder: (ctx) {
+        return SizedBox(
+          width: 44,
+          height: 44,
+          child: Material(
+            color: Colors.transparent,
+            child: InkWell(
+              onTap: () {
+                final scaffold = Scaffold.maybeOf(ctx);
+                scaffold?.openEndDrawer();
+              },
+              borderRadius: BorderRadius.circular(22),
+              child: Stack(
+                alignment: Alignment.center,
+                clipBehavior: Clip.none,
+                children: [
+                  const Icon(
                     Icons.tune_rounded,
                     color: AppColors.deepBlue,
+                    size: 24,
                   ),
-                );
-              },
-            ),
-            if (hasActiveFilter)
-              const Positioned(
-                right: 8,
-                top: 8,
-                child: SizedBox(
-                  width: 8,
-                  height: 8,
-                  child: DecoratedBox(
-                    decoration: BoxDecoration(
-                      color: Color(0xFFE85D4C),
-                      shape: BoxShape.circle,
+                  if (hasActiveFilter)
+                    Positioned(
+                      top: 6,
+                      right: 7,
+                      child: Container(
+                        width: 8,
+                        height: 8,
+                        decoration: const BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: Colors.orange,
+                        ),
+                      ),
                     ),
-                  ),
-                ),
+                ],
               ),
-          ],
-        ),
-      ),
+            ),
+          ),
+        );
+      },
     );
   }
 
@@ -3116,36 +3130,31 @@ class _PostScreenState extends State<PostScreen> with WidgetsBindingObserver {
         backgroundColor: Colors.white,
         child: _buildFilterSidebar(closeAfterSelect: true),
       ),
-      body: SafeArea(
-        child: LayoutBuilder(
-          builder: (context, constraints) {
-            if (constraints.maxWidth >= 700) {
-              return Row(
-                children: [
-                  Container(
-                    width: 260,
-                    color: Colors.white,
-                    child: _buildFilterSidebar(),
-                  ),
-                  const VerticalDivider(width: 1, color: Color(0xFFEDEEF0)),
-                  Expanded(child: _buildFeedScroll()),
-                ],
-              );
-            }
+      body: Stack(
+        children: [
+          SafeArea(
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                if (constraints.maxWidth >= 700) {
+                  return Row(
+                    children: [
+                      Container(
+                        width: 260,
+                        color: Colors.white,
+                        child: _buildFilterSidebar(),
+                      ),
+                      const VerticalDivider(width: 1, color: Color(0xFFEDEEF0)),
+                      Expanded(child: _buildFeedScroll()),
+                    ],
+                  );
+                }
 
-            // For narrow screens: show feed and keep filter button fixed on right
-            return Stack(
-              children: [
-                _buildFeedScroll(),
-                Positioned(
-                  top: 8,
-                  right: 8,
-                  child: _buildFilterFloatingButton(),
-                ),
-              ],
-            );
-          },
-        ),
+                // For narrow screens: show feed only
+                return _buildFeedScroll();
+              },
+            ),
+          ),
+        ],
       ),
       bottomNavigationBar: const CustomBottomNav(currentIndex: 4),
     );

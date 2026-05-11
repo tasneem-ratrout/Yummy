@@ -5,6 +5,7 @@ const Post = require('../models/Post');
 const User = require('../models/User');
 const UserProfile = require('../models/UserProfile');
 const UserFollow = require('../models/UserFollow');
+const { createNotification } = require('../services/notificationService');
 
 function _normalizeVisibility(raw) {
   const v = (raw || 'public').toString().trim().toLowerCase();
@@ -188,6 +189,18 @@ exports.toggleLike = async (req, res, next) => {
     post.likedByUsers = likedByUsers;
     await post.save();
 
+    if (likeIndex < 0 && post.authorId) {
+      const actor = await User.findById(userId).select('name').lean();
+      await createNotification({
+        recipientId: post.authorId.toString(),
+        actorId: userId,
+        type: 'like',
+        title: 'New like',
+        body: `${actor?.name || 'Someone'} liked your post`,
+        postId: post._id.toString(),
+      });
+    }
+
     res.json({
       error: false,
       message: likeIndex >= 0 ? 'Like removed' : 'Like added',
@@ -227,6 +240,21 @@ exports.addComment = async (req, res, next) => {
     });
 
     await post.save();
+
+    if (post.authorId) {
+      const actor = await User.findById(userId).select('name').lean();
+      const commentPreview = (text || '').toString().trim().slice(0, 80);
+      await createNotification({
+        recipientId: post.authorId.toString(),
+        actorId: userId,
+        type: 'comment',
+        title: 'New comment',
+        body: `${actor?.name || 'Someone'} commented: ${commentPreview || 'Nice post'}`,
+        postId: post._id.toString(),
+        commentText: text || '',
+      });
+    }
+
     // Return post with full URLs
     const postObj = post.toObject();
     postObj.authorImageUrl = _buildFullUrl(req, postObj.authorImageUrl || '');
