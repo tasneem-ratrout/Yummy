@@ -76,6 +76,27 @@ class MealService {
     );
   }
 
+  Future<Map<String, dynamic>> getPeriodSummary({
+    String period = 'week',
+  }) async {
+    final uri = Uri.parse(
+      '${AppConfig.baseUrl}/meals/summary/period',
+    ).replace(queryParameters: {'period': period});
+
+    final response = await http
+        .get(uri, headers: await _headers())
+        .timeout(AppConfig.requestTimeout);
+
+    final data = (jsonDecode(response.body) as Map<String, dynamic>);
+    if (response.statusCode >= 200 && response.statusCode < 300) {
+      return data;
+    }
+
+    throw Exception(
+      data['message']?.toString() ?? 'Failed to load meal period summary',
+    );
+  }
+
   Future<Map<String, dynamic>> getPreviousMeals({int limit = 50}) async {
     final uri = Uri.parse(
       '${AppConfig.baseUrl}/meals/saved-foods',

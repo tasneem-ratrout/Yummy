@@ -13,13 +13,77 @@ const toDateKey = (value) => {
 
 const dateFromDateKey = (dateKey) => {
   const [year, month, day] = dateKey.split("-").map((part) => Number(part));
-  return new Date(Date.UTC(year, month - 1, day));
+  return new Date(year, month - 1, day);
+};
+
+const dateKeyFromDate = (date) => {
+  const year = date.getFullYear().toString().padStart(4, "0");
+  const month = (date.getMonth() + 1).toString().padStart(2, "0");
+  const day = date.getDate().toString().padStart(2, "0");
+  return `${year}-${month}-${day}`;
 };
 
 const numberOrZero = (value) => {
   const parsed = Number(value);
   if (!Number.isFinite(parsed) || parsed < 0) return 0;
   return parsed;
+};
+
+const currentDateKey = () => dateKeyFromDate(new Date());
+
+const addDaysToDateKey = (dateKey, days) => {
+  const date = dateFromDateKey(dateKey);
+  date.setDate(date.getDate() + days);
+  return dateKeyFromDate(date);
+};
+
+const resolvePeriodRange = (period) => {
+  const normalized = (period || "week").toString().trim().toLowerCase();
+  const todayKey = currentDateKey();
+
+  if (normalized === "all") {
+    return {
+      period: "all",
+      label: "All time",
+      startDateKey: null,
+      endDateKey: null,
+      days: null,
+    };
+  }
+
+  if (normalized === "month") {
+    return {
+      period: "month",
+      label: "Last 30 days",
+      startDateKey: addDaysToDateKey(todayKey, -29),
+      endDateKey: todayKey,
+      days: 30,
+    };
+  }
+
+  return {
+    period: "week",
+    label: "Last 7 days",
+    startDateKey: addDaysToDateKey(todayKey, -6),
+    endDateKey: todayKey,
+    days: 7,
+  };
+};
+
+const buildDateKeySeries = (startDateKey, endDateKey) => {
+  if (!startDateKey || !endDateKey) return [];
+
+  const dates = [];
+  let cursor = dateFromDateKey(startDateKey);
+  const lastDate = dateFromDateKey(endDateKey);
+
+  while (cursor <= lastDate) {
+    dates.push(dateKeyFromDate(cursor));
+    cursor = new Date(cursor);
+    cursor.setDate(cursor.getDate() + 1);
+  }
+
+  return dates;
 };
 
 const addMealsBatch = async (req, res) => {
@@ -157,6 +221,153 @@ const getDailySummary = async (req, res) => {
     });
   } catch (error) {
     console.error("Error loading daily summary:", error.message);
+    return res.status(500).json({ message: "Server error" });
+  }
+};
+
+const getPeriodSummary = async (req, res) => {
+  try {
+    const userId = req.user.userId;
+    const range = resolvePeriodRange(req.query.period);
+
+    const mealQuery = { user: userId };
+    const waterQuery = { user: userId };
+
+    if (range.startDateKey && range.endDateKey) {
+      mealQuery.date_key = { $gte: range.startDateKey, $lte: range.endDateKey };
+      waterQuery.date_key = { $gte: range.startDateKey, $lte: range.endDateKey };
+    }
+
+    const [mealEntries, waterEntries] = await Promise.all([
+      MealEntry.find(mealQuery).sort({ date_key: 1, createdAt: 1 }).lean(),
+      DailyWaterEntry.find(waterQuery).sort({ date_key: 1 }).lean(),
+    ]);
+
+    const summary = {
+      calories: 0,
+      protein: 0,
+      carbs: 0,
+      fat: 0,
+      waterConsumedMl: 0,
+      mealCount: mealEntries.length,
+      daysWithMeals: new Set(mealEntries.map((entry) => entry.date_key)).size,
+      daysWithWater: new Set(waterEntries.map((entry) => entry.date_key)).size,
+    };
+
+    const mealTypeCounts = {
+      breakfast: 0,
+      lunch: 0,
+      snack: 0,
+      dinner: 0,
+    };
+
+    const mealTypeCalories = {
+      breakfast: 0,
+      lunch: 0,
+      snack: 0,
+      dinner: 0,
+    };
+
+    const waterSeriesMap = new Map();
+    let latestWaterGoalMl = 3500;
+
+    for (const entry of waterEntries) {
+      const dateKey = entry.date_key;
+      const consumedWaterMl = numberOrZero(entry.consumed_water_ml);
+      summary.waterConsumedMl += consumedWaterMl;
+      latestWaterGoalMl = numberOrZero(entry.daily_water_goal_ml) || latestWaterGoalMl;
+      waterSeriesMap.set(dateKey, {
+        dateKey,
+        consumedWaterMl,
+        dailyWaterGoalMl: numberOrZero(entry.daily_water_goal_ml),
+      });
+    }
+
+    for (const entry of mealEntries) {
+      const calories = numberOrZero(entry.calories);
+      summary.calories += calories;
+      summary.protein += numberOrZero(entry.protein);
+      summary.carbs += numberOrZero(entry.carbs);
+      summary.fat += numberOrZero(entry.fat);
+
+      if (mealTypeCounts[entry.meal_type] != null) {
+        mealTypeCounts[entry.meal_type] += 1;
+      }
+
+      if (mealTypeCalories[entry.meal_type] != null) {
+        mealTypeCalories[entry.meal_type] += calories;
+      }
+    }
+
+    const totalMacroGrams = summary.protein + summary.carbs + summary.fat;
+    const macroPercentages = totalMacroGrams > 0
+      ? {
+          protein: (summary.protein / totalMacroGrams) * 100,
+          carbs: (summary.carbs / totalMacroGrams) * 100,
+          fat: (summary.fat / totalMacroGrams) * 100,
+        }
+      : {
+          protein: 0,
+          carbs: 0,
+          fat: 0,
+        };
+
+    const waterSeries = range.period === "all"
+      ? waterEntries.map((entry) => ({
+          dateKey: entry.date_key,
+          consumedWaterMl: numberOrZero(entry.consumed_water_ml),
+          dailyWaterGoalMl: numberOrZero(entry.daily_water_goal_ml),
+        }))
+      : buildDateKeySeries(range.startDateKey, range.endDateKey).map((dateKey) => {
+          const item = waterSeriesMap.get(dateKey);
+          return {
+            dateKey,
+            consumedWaterMl: item?.consumedWaterMl || 0,
+            dailyWaterGoalMl: item?.dailyWaterGoalMl || latestWaterGoalMl,
+          };
+        });
+
+    const mealItems = mealEntries.map((entry) => ({
+      mealType: entry.meal_type,
+      mealName: entry.meal_name,
+      calories: numberOrZero(entry.calories),
+      protein: numberOrZero(entry.protein),
+      carbs: numberOrZero(entry.carbs),
+      fat: numberOrZero(entry.fat),
+      grams: numberOrZero(entry.grams),
+      dateKey: entry.date_key,
+      createdAt: entry.createdAt || entry.created_at || null,
+    }));
+
+    return res.status(200).json({
+      period: range.period,
+      label: range.label,
+      range: {
+        startDateKey: range.startDateKey,
+        endDateKey: range.endDateKey,
+      },
+      summary: {
+        ...summary,
+        averageCaloriesPerDay: range.period === "all"
+          ? summary.daysWithMeals > 0
+            ? summary.calories / summary.daysWithMeals
+            : 0
+          : summary.calories / (range.days || 1),
+        averageWaterPerDay: range.period === "all"
+          ? summary.daysWithWater > 0
+            ? summary.waterConsumedMl / summary.daysWithWater
+            : 0
+          : summary.waterConsumedMl / (range.days || 1),
+        dailyWaterGoalMl: latestWaterGoalMl,
+      },
+      mealTypeCounts,
+      mealTypeCalories,
+      macroPercentages,
+      waterSeries,
+      mealItems,
+    });
+  } catch (error) {
+    console.error("Error loading period summary:", error.message);
     return res.status(500).json({ message: "Server error" });
   }
 };
@@ -301,6 +512,7 @@ const getPreviousMeals = async (req, res) => {
 module.exports = {
   addMealsBatch,
   getDailySummary,
+  getPeriodSummary,
   analyzeQuickAddMeal,
   getPreviousMeals,
   updateDailyWater,

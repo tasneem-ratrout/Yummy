@@ -2,6 +2,7 @@
 import 'package:flutter/material.dart';
 import '../core/config/app_config.dart';
 import '../core/theme/app_colors.dart';
+import '../features/meal_history/meal_history_screen.dart';
 import '../features/profile/personal_details_screen.dart';
 import '../features/profile/user_profile_screen.dart';
 import '../features/auth/welcome_screen.dart';
@@ -150,7 +151,7 @@ class AppDrawer extends StatelessWidget {
                             ? Image.network(
                                 userImageUrl,
                                 fit: BoxFit.cover,
-                                errorBuilder: (_, __, ___) {
+                                errorBuilder: (_, _, _) {
                                   return Center(
                                     child: Text(
                                       getInitials(userName),
@@ -302,22 +303,11 @@ class AppDrawer extends StatelessWidget {
                     onTap: () {
                       Navigator.pop(context);
 
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text("page later")),
-                      );
-                    },
-                  ),
-
-                  _menuTile(
-                    context,
-                    icon: Icons.fact_check_outlined,
-                    title: "My Plan",
-                    subtitle: "Body goal, macros and progress",
-                    onTap: () {
-                      Navigator.pop(context);
-
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text("page later")),
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => const MealHistoryScreen(),
+                        ),
                       );
                     },
                   ),

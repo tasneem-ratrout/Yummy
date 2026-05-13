@@ -13,6 +13,7 @@ import '../add_meal/add_meal_screen.dart';
 import 'widgets/fire_streak_dialog_card.dart';
 import 'widgets/streak_gain_popup_card.dart';
 import 'widgets/streak_lost_popup_card.dart';
+import '../meal_history/meal_history_screen.dart';
 import 'dart:math' as math;
 
 class HomeScreen extends StatefulWidget {
@@ -2374,7 +2375,12 @@ class _HomeScreenState extends State<HomeScreen>
                             ),
                             GestureDetector(
                               onTap: () {
-                                // TODO: Navigate to details page
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (_) => const MealHistoryScreen(),
+                                  ),
+                                );
                               },
                               child: Row(
                                 children: [

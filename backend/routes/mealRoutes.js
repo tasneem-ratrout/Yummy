@@ -6,6 +6,7 @@ const { apiLimiter } = require("../middleware/rateLimitMiddleware");
 const {
 	addMealsBatch,
 	getDailySummary,
+	getPeriodSummary,
 	analyzeQuickAddMeal,
 	getPreviousMeals,
 	updateDailyWater,
@@ -13,6 +14,7 @@ const {
 
 router.post("/batch", verifyToken, apiLimiter, addMealsBatch);
 router.get("/summary", verifyToken, apiLimiter, getDailySummary);
+router.get("/summary/period", verifyToken, apiLimiter, getPeriodSummary);
 router.post("/quick-add/analyze", verifyToken, apiLimiter, analyzeQuickAddMeal);
 router.get("/previous", verifyToken, apiLimiter, getPreviousMeals);
 router.get("/saved-foods", verifyToken, apiLimiter, getPreviousMeals);
