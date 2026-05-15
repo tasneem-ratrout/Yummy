@@ -1,12 +1,15 @@
 import 'package:flutter/material.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../shared/glass_text_field.dart';
 import '../../../shared/app_background.dart';
 import '../../../shared/back_button_widget.dart';
 import 'package:frontend/features/auth/sign_up_account_screen.dart';
 import 'package:frontend/features/auth/forgot_password_screen.dart';
-import 'package:frontend/features/home/home_screen.dart';
 import '../../../core/services/auth_service.dart';
+import '../screen/page_cook_screen/home_cooks_screen.dart';
+import '../screen/page_admin_screen/admin_dashboard_screen.dart';
+import '../screen/page_chef_screen/chef_main_screen.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -18,16 +21,13 @@ class LoginScreen extends StatefulWidget {
 class _LoginScreenState extends State<LoginScreen>
     with SingleTickerProviderStateMixin {
   final _formKey = GlobalKey<FormState>();
-
   final _emailCtrl = TextEditingController();
   final _passCtrl = TextEditingController();
-
   final AuthService _authService = AuthService();
 
   bool _obscure = true;
   bool _rememberMe = true;
   bool _loading = false;
-
   String? _errorMessage;
 
   late final AnimationController _shakeController;
@@ -36,22 +36,20 @@ class _LoginScreenState extends State<LoginScreen>
   @override
   void initState() {
     super.initState();
-
     _shakeController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 420),
     );
-
-    _shakeAnimation = TweenSequence<double>([
-      TweenSequenceItem(tween: Tween(begin: 0, end: -10), weight: 1),
-      TweenSequenceItem(tween: Tween(begin: -10, end: 10), weight: 2),
-      TweenSequenceItem(tween: Tween(begin: 10, end: -8), weight: 2),
-      TweenSequenceItem(tween: Tween(begin: -8, end: 8), weight: 2),
-      TweenSequenceItem(tween: Tween(begin: 8, end: -4), weight: 1),
-      TweenSequenceItem(tween: Tween(begin: -4, end: 0), weight: 1),
-    ]).animate(
-      CurvedAnimation(parent: _shakeController, curve: Curves.easeOut),
-    );
+    _shakeAnimation = TweenSequence<double>(
+      [
+        TweenSequenceItem(tween: Tween(begin: 0, end: -10), weight: 1),
+        TweenSequenceItem(tween: Tween(begin: -10, end: 10), weight: 2),
+        TweenSequenceItem(tween: Tween(begin: 10, end: -8), weight: 2),
+        TweenSequenceItem(tween: Tween(begin: -8, end: 8), weight: 2),
+        TweenSequenceItem(tween: Tween(begin: 8, end: -4), weight: 1),
+        TweenSequenceItem(tween: Tween(begin: -4, end: 0), weight: 1),
+      ],
+    ).animate(CurvedAnimation(parent: _shakeController, curve: Curves.easeOut));
   }
 
   @override
@@ -67,7 +65,6 @@ class _LoginScreenState extends State<LoginScreen>
       _errorMessage = message;
       _loading = false;
     });
-
     _shakeController.forward(from: 0);
   }
 
@@ -75,6 +72,7 @@ class _LoginScreenState extends State<LoginScreen>
     final email = _emailCtrl.text.trim();
     final pass = _passCtrl.text.trim();
 
+    /// VALIDATION
     if (email.isEmpty) {
       _showError("Please enter your email");
       return;
@@ -101,28 +99,56 @@ class _LoginScreenState extends State<LoginScreen>
     });
 
     try {
-      final result = await _authService.login(
-        email: email,
-        password: pass,
-      );
-      
+      final result = await _authService.login(email: email, password: pass);
+
+      print("LOGIN RESPONSE 👉 $result");
+
       if (!mounted) return;
 
-      if (result['userId'] == null) {
-        _showError(result['message'] ?? 'Login failed');
+      /// ❌ إذا فشل
+      if (result['success'] != true) {
+        _showError(result['message'] ?? 'Invalid email or password');
         return;
       }
 
       setState(() => _loading = false);
 
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(
-          builder: (_) => const HomeScreen(),
-        ),
-      );
+      final role = result['role']?.toString().toLowerCase() ?? 'user';
+
+      print("USER ROLE 👉 $role");
+
+      /// 🔥 التوجيه الصحيح
+      if (role == 'chef') {
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(
+            builder: (_) => const ChefMainScreen(), // ✅ الصح
+          ),
+        );
+      } else if (role == 'admin') {
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (_) => const AdminDashboardScreen()),
+        );
+      } else {
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (_) => const HomeCooksScreen()),
+        );
+      }
     } catch (e) {
+      print("LOGIN ERROR 👉 $e");
       _showError("Something went wrong");
+    }
+  }
+
+  // ── Launch Dashboard ──────────────────────────────────────
+  Future<void> _launchDashboard() async {
+    final url = Uri.parse('http://192.168.0.108:3000');
+    try {
+      await launchUrl(url, mode: LaunchMode.externalApplication);
+    } catch (e) {
+      _showError('Could not open Dashboard: $e');
     }
   }
 
@@ -139,11 +165,7 @@ class _LoginScreenState extends State<LoginScreen>
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 SizedBox(height: h * 0.03),
-                const Row(
-                  children: [
-                    AppBackButton(),
-                  ],
-                ),
+                const Row(children: [AppBackButton()]),
                 const SizedBox(height: 20),
                 const Text(
                   "Welcome Back to Yummy",
@@ -177,9 +199,7 @@ class _LoginScreenState extends State<LoginScreen>
                     decoration: BoxDecoration(
                       color: const Color(0xFFFFE8E8),
                       borderRadius: BorderRadius.circular(16),
-                      border: Border.all(
-                        color: const Color(0xFFFFB3B3),
-                      ),
+                      border: Border.all(color: const Color(0xFFFFB3B3)),
                     ),
                     child: Row(
                       children: [
@@ -202,12 +222,10 @@ class _LoginScreenState extends State<LoginScreen>
                   ),
                 AnimatedBuilder(
                   animation: _shakeAnimation,
-                  builder: (context, child) {
-                    return Transform.translate(
-                      offset: Offset(_shakeAnimation.value, 0),
-                      child: child,
-                    );
-                  },
+                  builder: (context, child) => Transform.translate(
+                    offset: Offset(_shakeAnimation.value, 0),
+                    child: child,
+                  ),
                   child: Form(
                     key: _formKey,
                     child: Column(
@@ -228,11 +246,8 @@ class _LoginScreenState extends State<LoginScreen>
                           prefixIcon: Icons.lock_outline_rounded,
                           obscureText: _obscure,
                           suffix: IconButton(
-                            onPressed: () {
-                              setState(() {
-                                _obscure = !_obscure;
-                              });
-                            },
+                            onPressed: () =>
+                                setState(() => _obscure = !_obscure),
                             icon: Icon(
                               _obscure
                                   ? Icons.visibility_off_outlined
@@ -247,11 +262,8 @@ class _LoginScreenState extends State<LoginScreen>
                             Checkbox(
                               value: _rememberMe,
                               activeColor: AppColors.navy,
-                              onChanged: (v) {
-                                setState(() {
-                                  _rememberMe = v ?? true;
-                                });
-                              },
+                              onChanged: (v) =>
+                                  setState(() => _rememberMe = v ?? true),
                             ),
                             Text(
                               "Remember me",
@@ -262,15 +274,12 @@ class _LoginScreenState extends State<LoginScreen>
                             ),
                             const Spacer(),
                             TextButton(
-                              onPressed: () {
-                                Navigator.push(
-                                  context,
-                                  MaterialPageRoute(
-                                    builder: (_) =>
-                                        const ForgotPasswordScreen(),
-                                  ),
-                                );
-                              },
+                              onPressed: () => Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (_) => const ForgotPasswordScreen(),
+                                ),
+                              ),
                               child: const Text(
                                 "Forgot password?",
                                 style: TextStyle(
@@ -301,8 +310,7 @@ class _LoginScreenState extends State<LoginScreen>
                                     height: 22,
                                     child: CircularProgressIndicator(
                                       strokeWidth: 2.4,
-                                      valueColor:
-                                          AlwaysStoppedAnimation<Color>(
+                                      valueColor: AlwaysStoppedAnimation<Color>(
                                         Colors.white,
                                       ),
                                     ),
@@ -357,8 +365,9 @@ class _LoginScreenState extends State<LoginScreen>
                               shape: RoundedRectangleBorder(
                                 borderRadius: BorderRadius.circular(16),
                               ),
-                              backgroundColor:
-                                  AppColors.white.withOpacity(0.45),
+                              backgroundColor: AppColors.white.withOpacity(
+                                0.45,
+                              ),
                             ),
                             icon: const Icon(
                               Icons.g_mobiledata_rounded,
@@ -382,21 +391,19 @@ class _LoginScreenState extends State<LoginScreen>
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
                     Text(
-                      "Don’t have an account? ",
+                      "Don't have an account? ",
                       style: TextStyle(
                         color: AppColors.dark.withOpacity(0.65),
                         fontWeight: FontWeight.w700,
                       ),
                     ),
                     TextButton(
-                      onPressed: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (_) => const SignUpAccountScreen(),
-                          ),
-                        );
-                      },
+                      onPressed: () => Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => const SignUpAccountScreen(),
+                        ),
+                      ),
                       child: const Text(
                         "Sign Up",
                         style: TextStyle(

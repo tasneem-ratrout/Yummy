@@ -1,19 +1,19 @@
 import 'package:flutter/material.dart';
-import 'features/auth/splash_screen.dart';
-
+import 'package:frontend/features/auth/splash_screen.dart';
 
 void main() {
-  runApp(const YummyApp());
+  runApp(const YummyNaremanApp());
 }
 
-class YummyApp extends StatelessWidget {
-  const YummyApp({super.key});
+class YummyNaremanApp extends StatelessWidget {
+  const YummyNaremanApp({super.key});
 
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
+      title: 'Yummy Nareman',
       debugShowCheckedModeBanner: false,
-      title: 'Yummy',
+      theme: ThemeData(fontFamily: 'Poppins'),
       home: const SplashScreen(),
     );
   }

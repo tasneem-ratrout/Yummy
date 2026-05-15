@@ -13,13 +13,8 @@ class AuthService {
     final response = await http.post(
       Uri.parse('$baseUrl/auth/register'),
       headers: {'Content-Type': 'application/json'},
-      body: jsonEncode({
-        'email': email,
-        'password': password,
-        'role': 'user',
-      }),
+      body: jsonEncode({'email': email, 'password': password, 'role': 'user'}),
     );
-
     return jsonDecode(response.body);
   }
 
@@ -27,24 +22,41 @@ class AuthService {
     required String email,
     required String password,
   }) async {
-    final response = await http.post(
-      Uri.parse('$baseUrl/auth/login'),
-      headers: {'Content-Type': 'application/json'},
-      body: jsonEncode({
-        'email': email,
-        'password': password,
-      }),
-    );
+    try {
+      final response = await http.post(
+        Uri.parse('$baseUrl/auth/login'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({
+          'email': email.toLowerCase().trim(),
+          'password': password.trim(),
+        }),
+      );
 
-    final data = jsonDecode(response.body);
+      final data = jsonDecode(response.body);
 
-    if (response.statusCode == 200 && data['token'] != null) {
+      print("LOGIN STATUS 👉 ${response.statusCode}");
+      print("LOGIN DATA 👉 $data");
+
+      /// ❌ إذا فشل
+      if (response.statusCode != 200) {
+        return {'success': false, 'message': data['message'] ?? 'Login failed'};
+      }
+
+      /// ✅ إذا نجح
       final prefs = await SharedPreferences.getInstance();
-      await prefs.setString('token', data['token']);
-      await prefs.setString('userId', data['userId'].toString());
-    }
 
-    return data;
+      await prefs.setString('token', data['token'] ?? '');
+      await prefs.setString('userId', data['userId'].toString());
+      await prefs.setString('chefId', data['chefId']?.toString() ?? '');
+      await prefs.setString('userName', data['name'] ?? '');
+      await prefs.setString('userEmail', data['email'] ?? '');
+      await prefs.setString('userRole', data['role'] ?? 'user');
+
+      return {'success': true, ...data};
+    } catch (e) {
+      print("LOGIN ERROR 👉 $e");
+      return {'success': false, 'message': 'Server error'};
+    }
   }
 
   Future<String?> getToken() async {
@@ -52,15 +64,23 @@ class AuthService {
     return prefs.getString('token');
   }
 
+  Future<String> getUserName() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getString('userName') ?? '';
+  }
+
+  Future<String> getUserId() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getString('userId') ?? '';
+  }
+
   Future<void> logout() async {
     final prefs = await SharedPreferences.getInstance();
-    await prefs.remove('token');
-    await prefs.remove('userId');
+    await prefs.clear();
   }
 
   Future<Map<String, dynamic>> getMe() async {
     final token = await getToken();
-
     final response = await http.get(
       Uri.parse('$baseUrl/auth/me'),
       headers: {
@@ -68,7 +88,6 @@ class AuthService {
         'Authorization': 'Bearer $token',
       },
     );
-
     return jsonDecode(response.body);
   }
 
@@ -79,51 +98,51 @@ class AuthService {
     final response = await http.patch(
       Uri.parse('$baseUrl/auth/update-name'),
       headers: {'Content-Type': 'application/json'},
-      body: jsonEncode({
-        'userId': userId,
-        'name': name,
-      }),
+      body: jsonEncode({'userId': userId, 'name': name}),
     );
 
-    return jsonDecode(response.body);
+    final data = jsonDecode(response.body);
+    if (data['success'] == true) {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString('userName', name);
+    }
+    return data;
   }
 
   Future<Map<String, dynamic>> saveProfile({
-  required String name,
-  required String goal,
-  required String gender,
-  required String dateOfBirth,
-  required int heightValue,
-  required String heightUnit,
-  required double weightValue,
-  required String weightUnit,
-  required String activityLevel,
-  required List<String> allergies,
-  required List<String> medicalConditions,
-}) async {
-  final token = await getToken();
-
-  final response = await http.post(
-    Uri.parse('$baseUrl/user-profile'),
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': 'Bearer $token',
-    },
-    body: jsonEncode({
-      'name': name,
-      'goal': goal,
-      'gender': gender,
-      'date_of_birth': dateOfBirth,
-      'height_value': heightValue,
-      'height_unit': heightUnit,
-      'weight_value': weightValue,
-      'weight_unit': weightUnit,
-      'activity_level': activityLevel,
-      'allergies': allergies,
-      'medical_conditions': medicalConditions,
-    }),
-  );
-
-  return jsonDecode(response.body);
-}
+    required String name,
+    required String goal,
+    required String gender,
+    required String dateOfBirth,
+    required int heightValue,
+    required String heightUnit,
+    required double weightValue,
+    required String weightUnit,
+    required String activityLevel,
+    required List<String> allergies,
+    required List<String> medicalConditions,
+  }) async {
+    final token = await getToken();
+    final response = await http.post(
+      Uri.parse('$baseUrl/user-profile'),
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer $token',
+      },
+      body: jsonEncode({
+        'name': name,
+        'goal': goal,
+        'gender': gender,
+        'date_of_birth': dateOfBirth,
+        'height_value': heightValue,
+        'height_unit': heightUnit,
+        'weight_value': weightValue,
+        'weight_unit': weightUnit,
+        'activity_level': activityLevel,
+        'allergies': allergies,
+        'medical_conditions': medicalConditions,
+      }),
+    );
+    return jsonDecode(response.body);
+  }
 }
