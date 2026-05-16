@@ -7,7 +7,7 @@ const {
   getUsersStreaks,
   searchUsers,
 } = require("../controllers/userProfileController");
-const verifyToken = require("../middleware/authMiddleware");
+const { verifyToken } = require("../middleware/authMiddleware");
 const upload = require("../middleware/uploadMiddleware");
 const { apiLimiter } = require("../middleware/rateLimitMiddleware");
 

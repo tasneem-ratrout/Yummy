@@ -6,9 +6,12 @@ import '../../../shared/back_button_widget.dart';
 import 'package:frontend/features/auth/sign_up_account_screen.dart';
 import 'package:frontend/features/auth/forgot_password_screen.dart';
 import 'package:frontend/features/home/home_screen.dart';
+import 'package:frontend/features/screen/page_admin_screen/admin_dashboard_screen.dart';
+import 'package:frontend/features/screen/page_chef_screen/chef_main_screen.dart';
 import 'package:provider/provider.dart';
 import '../../../core/providers/auth_provider.dart';
 import '../../../core/providers/user_provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -136,9 +139,49 @@ class _LoginScreenState extends State<LoginScreen>
 
       setState(() => _loading = false);
 
+      // Debug output to help diagnose missing role
+      print('LOGIN result => $result');
+      print('Fetched user => ${userProvider.user}');
+
+      final prefs = await SharedPreferences.getInstance();
+      final prefRole = prefs.getString('userRole');
+
+      final role =
+          (result['user']?['role'] ??
+                  result['role'] ??
+                  userProvider.user?['role'] ??
+                  prefRole)
+              ?.toString()
+              .toLowerCase();
+
+      // Persist the resolved role so splash/startup can restore the same screen
+      await prefs.setString('userRole', role ?? 'user');
+
+      final chefId =
+          (result['user']?['chefId'] ??
+                  result['chefId'] ??
+                  userProvider.user?['chefId'] ??
+                  prefs.getString('chefId'))
+              ?.toString();
+      if (chefId != null && chefId.trim().isNotEmpty) {
+        await prefs.setString('chefId', chefId);
+      }
+
+      Widget destination;
+      switch (role) {
+        case 'admin':
+          destination = const AdminDashboardScreen();
+          break;
+        case 'chef':
+          destination = const ChefMainScreen();
+          break;
+        default:
+          destination = const HomeScreen();
+      }
+
       Navigator.pushReplacement(
         context,
-        MaterialPageRoute(builder: (_) => const HomeScreen()),
+        MaterialPageRoute(builder: (_) => destination),
       );
     } catch (e) {
       _showError("Something went wrong");

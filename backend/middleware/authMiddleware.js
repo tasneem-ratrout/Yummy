@@ -22,4 +22,17 @@ const verifyToken = (req, res, next) => {
   }
 };
 
-module.exports = verifyToken;
+// Middleware to allow only admin users
+const adminOnly = (req, res, next) => {
+  try {
+    const role = req.user?.role;
+    if (role && role.toString().toLowerCase() === 'admin') {
+      return next();
+    }
+    return res.status(403).json({ message: 'Forbidden: admin only' });
+  } catch (e) {
+    return res.status(403).json({ message: 'Forbidden' });
+  }
+};
+
+module.exports = { verifyToken, adminOnly };

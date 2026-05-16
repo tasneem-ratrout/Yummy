@@ -5,15 +5,18 @@ import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
+
 import '../config/app_config.dart';
 
 class AuthService {
   static const String baseUrl = AppConfig.baseUrl;
   static const Duration timeoutDuration = Duration(seconds: 30);
+
   static const String _tokenKey = 'token';
   static const String _userIdKey = 'userId';
   static const String _rememberMeKey = 'rememberMe';
   static const String _hiddenUsersKey = 'hiddenUsers';
+
   static bool _pushTokenListenerConfigured = false;
 
   static String? _sessionToken;
@@ -25,14 +28,14 @@ class AuthService {
     } catch (e) {
       print('⚠️ JSON Parse Error: $e');
       print('📄 Response body: $body');
-      return {'message': 'Invalid server response', 'error': true};
+      return {'success': false, 'message': 'Invalid server response', 'error': true};
     }
   }
 
   static Future<Map<String, String>> _buildHeaders({String? token}) async {
     final headers = {'Content-Type': 'application/json'};
 
-    if (token != null) {
+    if (token != null && token.trim().isNotEmpty) {
       headers['Authorization'] = 'Bearer $token';
     }
 
@@ -41,6 +44,7 @@ class AuthService {
 
   static Map<String, dynamic> _handleError(dynamic error) {
     return {
+      'success': false,
       'message': 'Network error. Please check your connection.',
       'error': true,
       'details': error.toString(),
@@ -57,8 +61,8 @@ class AuthService {
             Uri.parse('$baseUrl/auth/register'),
             headers: await _buildHeaders(),
             body: jsonEncode({
-              'email': email,
-              'password': password,
+              'email': email.toLowerCase().trim(),
+              'password': password.trim(),
               'role': 'user',
             }),
           )
@@ -72,14 +76,25 @@ class AuthService {
         _sessionUserId = data['userId']?.toString();
 
         final prefs = await SharedPreferences.getInstance();
-        await prefs.setString(_tokenKey, data['token']);
-        await prefs.setString(_userIdKey, data['userId'].toString());
+
+        await prefs.setString(_tokenKey, data['token'] ?? '');
+        await prefs.setString(_userIdKey, data['userId']?.toString() ?? '');
+        await prefs.setString('chefId', data['chefId']?.toString() ?? '');
+        await prefs.setString('userName', data['name']?.toString() ?? '');
+        await prefs.setString('userEmail', data['email']?.toString() ?? email);
+        await prefs.setString('userRole', data['role']?.toString() ?? 'user');
         await prefs.setBool(_rememberMeKey, true);
 
         await registerDeviceToken();
+
+        return {'success': true, ...data};
       }
 
-      return data;
+      return {
+        'success': false,
+        'message': data['message'] ?? 'Register failed',
+        ...data,
+      };
     } catch (e) {
       return _handleError(e);
     }
@@ -95,39 +110,57 @@ class AuthService {
           .post(
             Uri.parse('$baseUrl/auth/login'),
             headers: await _buildHeaders(),
-            body: jsonEncode({'email': email, 'password': password}),
+            body: jsonEncode({
+              'email': email.toLowerCase().trim(),
+              'password': password.trim(),
+            }),
           )
           .timeout(timeoutDuration);
 
       final data = _parseResponse(response.body);
 
-      if (response.statusCode == 200 && data['token'] != null) {
-        _sessionToken = data['token'];
-        _sessionUserId = data['userId']?.toString();
+      print("LOGIN STATUS 👉 ${response.statusCode}");
+      print("LOGIN DATA 👉 $data");
 
-        final prefs = await SharedPreferences.getInstance();
-
-        if (rememberMe) {
-          await prefs.setString(_tokenKey, data['token']);
-          await prefs.setString(_userIdKey, data['userId'].toString());
-        } else {
-          await prefs.remove(_tokenKey);
-          await prefs.remove(_userIdKey);
-        }
-
-        await prefs.setBool(_rememberMeKey, rememberMe);
-
-        await registerDeviceToken();
+      if (response.statusCode != 200 || data['token'] == null) {
+        return {
+          'success': false,
+          'message': data['message'] ?? 'Login failed',
+          ...data,
+        };
       }
 
-      return data;
+      _sessionToken = data['token'];
+      _sessionUserId = data['userId']?.toString();
+
+      final prefs = await SharedPreferences.getInstance();
+
+      if (rememberMe) {
+        await prefs.setString(_tokenKey, data['token'] ?? '');
+        await prefs.setString(_userIdKey, data['userId']?.toString() ?? '');
+      } else {
+        await prefs.remove(_tokenKey);
+        await prefs.remove(_userIdKey);
+      }
+
+      await prefs.setBool(_rememberMeKey, rememberMe);
+
+      await prefs.setString('chefId', data['chefId']?.toString() ?? '');
+      await prefs.setString('userName', data['name']?.toString() ?? '');
+      await prefs.setString('userEmail', data['email']?.toString() ?? email);
+      await prefs.setString('userRole', data['role']?.toString() ?? 'user');
+
+      await registerDeviceToken();
+
+      return {'success': true, ...data};
     } catch (e) {
+      print("LOGIN ERROR 👉 $e");
       return _handleError(e);
     }
   }
 
   Future<String?> getToken() async {
-    if (_sessionToken != null) {
+    if (_sessionToken != null && _sessionToken!.trim().isNotEmpty) {
       return _sessionToken;
     }
 
@@ -135,13 +168,18 @@ class AuthService {
     return prefs.getString(_tokenKey);
   }
 
-  Future<String?> getUserId() async {
-    if (_sessionUserId != null) {
-      return _sessionUserId;
+  Future<String> getUserId() async {
+    if (_sessionUserId != null && _sessionUserId!.trim().isNotEmpty) {
+      return _sessionUserId!;
     }
 
     final prefs = await SharedPreferences.getInstance();
-    return prefs.getString(_userIdKey);
+    return prefs.getString(_userIdKey) ?? '';
+  }
+
+  Future<String> getUserName() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getString('userName') ?? '';
   }
 
   Future<bool> getRememberMePreference() async {
@@ -159,13 +197,21 @@ class AuthService {
     _sessionUserId = null;
 
     final prefs = await SharedPreferences.getInstance();
+
     await prefs.remove(_tokenKey);
     await prefs.remove(_userIdKey);
+    await prefs.remove('chefId');
+    await prefs.remove('userName');
+    await prefs.remove('userEmail');
+    await prefs.remove('userRole');
+
+    // نخلي rememberMe والـ hidden users عادي، ما نمسحهم
   }
 
   Future<void> registerDeviceToken() async {
     try {
       final authToken = await getToken();
+
       if (authToken == null || authToken.trim().isEmpty) {
         print('⚠️ No auth token, cannot register FCM token');
         return;
@@ -218,19 +264,23 @@ class AuthService {
     String fcmToken,
     String authToken,
   ) async {
-    final response = await http
-        .post(
-          Uri.parse('$baseUrl/auth/device-token'),
-          headers: await _buildHeaders(token: authToken),
-          body: jsonEncode({'token': fcmToken}),
-        )
-        .timeout(timeoutDuration);
+    try {
+      final response = await http
+          .post(
+            Uri.parse('$baseUrl/auth/device-token'),
+            headers: await _buildHeaders(token: authToken),
+            body: jsonEncode({'token': fcmToken}),
+          )
+          .timeout(timeoutDuration);
 
-    print('📤 Save FCM token status: ${response.statusCode}');
-    print('📤 Save FCM token body: ${response.body}');
+      print('📤 Save FCM token status: ${response.statusCode}');
+      print('📤 Save FCM token body: ${response.body}');
 
-    if (response.statusCode >= 400) {
-      print('⚠️ Saving device token failed: ${response.body}');
+      if (response.statusCode >= 400) {
+        print('⚠️ Saving device token failed: ${response.body}');
+      }
+    } catch (e) {
+      print('⚠️ _sendDeviceTokenToBackend failed: $e');
     }
   }
 
@@ -242,10 +292,12 @@ class AuthService {
         .map((item) {
           try {
             final decoded = jsonDecode(item);
+
             if (decoded is Map) {
               return Map<String, dynamic>.from(decoded);
             }
           } catch (_) {}
+
           return <String, dynamic>{};
         })
         .where((item) => (item['id']?.toString() ?? '').trim().isNotEmpty)
@@ -258,10 +310,12 @@ class AuthService {
     String? imageUrl,
   }) async {
     final normalizedId = userId.trim();
+
     if (normalizedId.isEmpty) return;
 
     final prefs = await SharedPreferences.getInstance();
     final current = await getHiddenUsers();
+
     final updated = <Map<String, dynamic>>[
       ...current.where((item) => item['id']?.toString() != normalizedId),
       {
@@ -279,10 +333,12 @@ class AuthService {
 
   Future<void> unhideUser(String userId) async {
     final normalizedId = userId.trim();
+
     if (normalizedId.isEmpty) return;
 
     final prefs = await SharedPreferences.getInstance();
     final current = await getHiddenUsers();
+
     final updated = current
         .where((item) => item['id']?.toString() != normalizedId)
         .toList();
@@ -297,8 +353,12 @@ class AuthService {
     try {
       final token = await getToken();
 
-      if (token == null) {
-        return {'message': 'No authentication token found', 'error': true};
+      if (token == null || token.trim().isEmpty) {
+        return {
+          'success': false,
+          'message': 'No authentication token found',
+          'error': true,
+        };
       }
 
       final response = await http
@@ -314,23 +374,37 @@ class AuthService {
     }
   }
 
-  Future<Map<String, dynamic>> updateUserName({required String name}) async {
+  Future<Map<String, dynamic>> updateUserName({
+    String? userId,
+    required String name,
+  }) async {
     try {
       final token = await getToken();
 
-      if (token == null) {
-        return {'message': 'No authentication token found', 'error': true};
+      final body = <String, dynamic>{'name': name};
+
+      if (userId != null && userId.trim().isNotEmpty) {
+        body['userId'] = userId;
       }
 
       final response = await http
           .patch(
             Uri.parse('$baseUrl/auth/update-name'),
-            headers: await _buildHeaders(token: token),
-            body: jsonEncode({'name': name}),
+            headers: token == null
+                ? await _buildHeaders()
+                : await _buildHeaders(token: token),
+            body: jsonEncode(body),
           )
           .timeout(timeoutDuration);
 
-      return _parseResponse(response.body);
+      final data = _parseResponse(response.body);
+
+      if (data['success'] == true || response.statusCode == 200) {
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.setString('userName', name);
+      }
+
+      return data;
     } catch (e) {
       return _handleError(e);
     }
@@ -354,8 +428,12 @@ class AuthService {
     try {
       final token = await getToken();
 
-      if (token == null) {
-        return {'message': 'No authentication token found', 'error': true};
+      if (token == null || token.trim().isEmpty) {
+        return {
+          'success': false,
+          'message': 'No authentication token found',
+          'error': true,
+        };
       }
 
       if (imageFile != null) {
@@ -365,6 +443,7 @@ class AuthService {
         );
 
         request.headers['Authorization'] = 'Bearer $token';
+
         request.fields['name'] = name;
         request.fields['goal'] = goal;
         request.fields['gender'] = gender;
@@ -377,8 +456,8 @@ class AuthService {
         request.fields['allergies'] = jsonEncode(allergies);
         request.fields['medical_conditions'] = jsonEncode(medicalConditions);
 
-        if (email != null) {
-          request.fields['email'] = email;
+        if (email != null && email.trim().isNotEmpty) {
+          request.fields['email'] = email.trim();
         }
 
         request.files.add(
@@ -387,10 +466,11 @@ class AuthService {
 
         final streamedResponse = await request.send().timeout(timeoutDuration);
         final response = await http.Response.fromStream(streamedResponse);
+
         return _parseResponse(response.body);
       }
 
-      final requestBody = {
+      final requestBody = <String, dynamic>{
         'name': name,
         'goal': goal,
         'gender': gender,
@@ -404,8 +484,8 @@ class AuthService {
         'medical_conditions': medicalConditions,
       };
 
-      if (email != null) {
-        requestBody['email'] = email;
+      if (email != null && email.trim().isNotEmpty) {
+        requestBody['email'] = email.trim();
       }
 
       final response = await http
@@ -428,8 +508,13 @@ class AuthService {
   }) async {
     try {
       final token = await getToken();
-      if (token == null) {
-        return {'message': 'No authentication token found', 'error': true};
+
+      if (token == null || token.trim().isEmpty) {
+        return {
+          'success': false,
+          'message': 'No authentication token found',
+          'error': true,
+        };
       }
 
       final response = await http
@@ -460,8 +545,13 @@ class AuthService {
   Future<Map<String, dynamic>> getUsersStreaks() async {
     try {
       final token = await getToken();
-      if (token == null) {
-        return {'message': 'No authentication token found', 'error': true};
+
+      if (token == null || token.trim().isEmpty) {
+        return {
+          'success': false,
+          'message': 'No authentication token found',
+          'error': true,
+        };
       }
 
       final response = await http
@@ -480,7 +570,10 @@ class AuthService {
   Future<Map<String, dynamic>> searchUsers(String query) async {
     try {
       final token = await getToken();
-      if (token == null) return {'message': 'No token', 'error': true};
+
+      if (token == null || token.trim().isEmpty) {
+        return {'success': false, 'message': 'No token', 'error': true};
+      }
 
       final uri = Uri.parse(
         '$baseUrl/user-profile/search?q=${Uri.encodeQueryComponent(query)}',
@@ -499,10 +592,12 @@ class AuthService {
   Future<Map<String, dynamic>> getPosts() async {
     try {
       final token = await getToken();
-      final headers = await _buildHeaders(token: token);
 
       final response = await http
-          .get(Uri.parse('$baseUrl/posts'), headers: headers)
+          .get(
+            Uri.parse('$baseUrl/posts'),
+            headers: await _buildHeaders(token: token),
+          )
           .timeout(timeoutDuration);
 
       return _parseResponse(response.body);
@@ -524,13 +619,14 @@ class AuthService {
   }) async {
     try {
       final token = await getToken();
-      if (token == null) return {'message': 'No token', 'error': true};
+
+      if (token == null || token.trim().isEmpty) {
+        return {'success': false, 'message': 'No token', 'error': true};
+      }
 
       print('🔗 POST $baseUrl/posts');
 
       if (imageFile != null) {
-        print('📷 Uploading with image: ${imageFile.path}');
-
         final request = http.MultipartRequest(
           'POST',
           Uri.parse('$baseUrl/posts'),
@@ -543,6 +639,7 @@ class AuthService {
         if (authorImageUrl != null) {
           request.fields['authorImageUrl'] = authorImageUrl;
         }
+
         if (calories != null) request.fields['calories'] = calories.toString();
         if (fat != null) request.fields['fat'] = fat.toString();
         if (carbs != null) request.fields['carbs'] = carbs.toString();
@@ -593,9 +690,10 @@ class AuthService {
   }) async {
     try {
       final token = await getToken();
-      if (token == null) return {'error': true, 'message': 'No token'};
 
-      print('👍 Toggle like on post $postId');
+      if (token == null || token.trim().isEmpty) {
+        return {'success': false, 'error': true, 'message': 'No token'};
+      }
 
       final response = await http
           .post(
@@ -620,25 +718,13 @@ class AuthService {
     try {
       final token = await getToken();
 
-      if (token == null) {
-        print('❌ No token found for addPostComment');
-        return {'error': true, 'message': 'No token'};
+      if (token == null || token.trim().isEmpty) {
+        return {'success': false, 'error': true, 'message': 'No token'};
       }
-
-      final url = '$baseUrl/posts/$postId/comment';
-
-      print('💬 Adding comment to post $postId');
-      print('🔗 Comment URL: $url');
-      print('📦 Comment body: ${jsonEncode({
-            'authorName': authorName,
-            'authorImageUrl': authorImageUrl,
-            'text': text,
-          })}');
-      print('🔑 Token: ${token.substring(0, 10)}...');
 
       final response = await http
           .post(
-            Uri.parse(url),
+            Uri.parse('$baseUrl/posts/$postId/comment'),
             headers: await _buildHeaders(token: token),
             body: jsonEncode({
               'authorName': authorName,
@@ -648,12 +734,8 @@ class AuthService {
           )
           .timeout(timeoutDuration);
 
-      print('📥 Comment Status Code: ${response.statusCode}');
-      print('📥 Comment Response Body: ${response.body}');
-
       return _parseResponse(response.body);
     } catch (e) {
-      print('❌ Error in addPostComment: $e');
       return _handleError(e);
     }
   }
@@ -661,7 +743,10 @@ class AuthService {
   Future<Map<String, dynamic>> deletePost({required String postId}) async {
     try {
       final token = await getToken();
-      if (token == null) return {'error': true, 'message': 'No token'};
+
+      if (token == null || token.trim().isEmpty) {
+        return {'success': false, 'error': true, 'message': 'No token'};
+      }
 
       final response = await http
           .delete(
@@ -676,29 +761,23 @@ class AuthService {
     }
   }
 
-  Future<Map<String, dynamic>> sendResetCode({required String email}) async {
+  Future<Map<String, dynamic>> sendResetCode({
+    required String email,
+  }) async {
     try {
-      print('📤 Sending reset code to: $email');
-      print('🔗 URL: $baseUrl/auth/forgot-password/send-code');
-
       final response = await http
           .post(
             Uri.parse('$baseUrl/auth/forgot-password/send-code'),
             headers: await _buildHeaders(),
-            body: jsonEncode({'email': email}),
+            body: jsonEncode({'email': email.toLowerCase().trim()}),
           )
           .timeout(timeoutDuration);
-
-      print('📥 Status Code: ${response.statusCode}');
-      print('📥 Response Headers: ${response.headers}');
-      print('📥 Response Body: ${response.body}');
 
       final data = _parseResponse(response.body);
       data['statusCode'] = response.statusCode;
 
       return data;
     } catch (e) {
-      print('❌ Error in sendResetCode: $e');
       return _handleError(e);
     }
   }
@@ -708,26 +787,22 @@ class AuthService {
     required String code,
   }) async {
     try {
-      print('📤 Verifying reset code for: $email');
-      print('🔗 URL: $baseUrl/auth/forgot-password/verify-code');
-
       final response = await http
           .post(
             Uri.parse('$baseUrl/auth/forgot-password/verify-code'),
             headers: await _buildHeaders(),
-            body: jsonEncode({'email': email, 'code': code}),
+            body: jsonEncode({
+              'email': email.toLowerCase().trim(),
+              'code': code.trim(),
+            }),
           )
           .timeout(timeoutDuration);
-
-      print('📥 Status Code: ${response.statusCode}');
-      print('📥 Response Body: ${response.body}');
 
       final data = _parseResponse(response.body);
       data['statusCode'] = response.statusCode;
 
       return data;
     } catch (e) {
-      print('❌ Error in verifyResetCode: $e');
       return _handleError(e);
     }
   }
@@ -737,26 +812,22 @@ class AuthService {
     required String newPassword,
   }) async {
     try {
-      print('📤 Resetting password for: $email');
-      print('🔗 URL: $baseUrl/auth/forgot-password/reset');
-
       final response = await http
           .post(
             Uri.parse('$baseUrl/auth/forgot-password/reset'),
             headers: await _buildHeaders(),
-            body: jsonEncode({'email': email, 'newPassword': newPassword}),
+            body: jsonEncode({
+              'email': email.toLowerCase().trim(),
+              'newPassword': newPassword,
+            }),
           )
           .timeout(timeoutDuration);
-
-      print('📥 Status Code: ${response.statusCode}');
-      print('📥 Response Body: ${response.body}');
 
       final data = _parseResponse(response.body);
       data['statusCode'] = response.statusCode;
 
       return data;
     } catch (e) {
-      print('❌ Error in resetPassword: $e');
       return _handleError(e);
     }
   }
@@ -767,14 +838,13 @@ class AuthService {
     try {
       final token = await getToken();
 
-      if (token == null) {
-        print('❌ No token found');
-        return {'message': 'No authentication token found', 'error': true};
+      if (token == null || token.trim().isEmpty) {
+        return {
+          'success': false,
+          'message': 'No authentication token found',
+          'error': true,
+        };
       }
-
-      print('🔗 API Call: POST $baseUrl/follow/toggle');
-      print('📦 Body: {"targetUserId": "$targetUserId"}');
-      print('🔑 Token: ${token.substring(0, 10)}...');
 
       final response = await http
           .post(
@@ -784,25 +854,25 @@ class AuthService {
           )
           .timeout(timeoutDuration);
 
-      print('📥 Status Code: ${response.statusCode}');
-      print('📥 Response: ${response.body}');
-
       return _parseResponse(response.body);
     } catch (e) {
-      print('❌ Error in toggleFollow: $e');
       return _handleError(e);
     }
   }
 
-  Future<Map<String, dynamic>> getFollowers({required String userId}) async {
+  Future<Map<String, dynamic>> getFollowers({
+    required String userId,
+  }) async {
     try {
       final token = await getToken();
 
-      if (token == null) {
-        return {'message': 'No authentication token found', 'error': true};
+      if (token == null || token.trim().isEmpty) {
+        return {
+          'success': false,
+          'message': 'No authentication token found',
+          'error': true,
+        };
       }
-
-      print('👥 Getting followers for user: $userId');
 
       final response = await http
           .get(
@@ -817,15 +887,19 @@ class AuthService {
     }
   }
 
-  Future<Map<String, dynamic>> getFollowing({required String userId}) async {
+  Future<Map<String, dynamic>> getFollowing({
+    required String userId,
+  }) async {
     try {
       final token = await getToken();
 
-      if (token == null) {
-        return {'message': 'No authentication token found', 'error': true};
+      if (token == null || token.trim().isEmpty) {
+        return {
+          'success': false,
+          'message': 'No authentication token found',
+          'error': true,
+        };
       }
-
-      print('👥 Getting following for user: $userId');
 
       final response = await http
           .get(
@@ -846,8 +920,12 @@ class AuthService {
     try {
       final token = await getToken();
 
-      if (token == null) {
-        return {'message': 'No authentication token found', 'error': true};
+      if (token == null || token.trim().isEmpty) {
+        return {
+          'success': false,
+          'message': 'No authentication token found',
+          'error': true,
+        };
       }
 
       final response = await http
@@ -863,12 +941,18 @@ class AuthService {
     }
   }
 
-  Future<Map<String, dynamic>> getUserStats({required String userId}) async {
+  Future<Map<String, dynamic>> getUserStats({
+    required String userId,
+  }) async {
     try {
       final token = await getToken();
 
-      if (token == null) {
-        return {'message': 'No authentication token found', 'error': true};
+      if (token == null || token.trim().isEmpty) {
+        return {
+          'success': false,
+          'message': 'No authentication token found',
+          'error': true,
+        };
       }
 
       final response = await http
@@ -888,8 +972,12 @@ class AuthService {
     try {
       final token = await getToken();
 
-      if (token == null) {
-        return {'message': 'No authentication token found', 'error': true};
+      if (token == null || token.trim().isEmpty) {
+        return {
+          'success': false,
+          'message': 'No authentication token found',
+          'error': true,
+        };
       }
 
       final response = await http
@@ -911,8 +999,12 @@ class AuthService {
     try {
       final token = await getToken();
 
-      if (token == null) {
-        return {'message': 'No authentication token found', 'error': true};
+      if (token == null || token.trim().isEmpty) {
+        return {
+          'success': false,
+          'message': 'No authentication token found',
+          'error': true,
+        };
       }
 
       final response = await http
@@ -932,8 +1024,12 @@ class AuthService {
     try {
       final token = await getToken();
 
-      if (token == null) {
-        return {'message': 'No authentication token found', 'error': true};
+      if (token == null || token.trim().isEmpty) {
+        return {
+          'success': false,
+          'message': 'No authentication token found',
+          'error': true,
+        };
       }
 
       final response = await http

@@ -29,6 +29,7 @@ class AppColors {
   static const Color labelGray = Color(0xFFB0B0B0);
   static const Color red = Color.fromARGB(255, 203, 55, 45);
 
+  // Nutrition summary colors
   static const Color caloriesPurple = Color(0xFF7C4DFF);
   static const Color proteinBlue = Color(0xFF5B8DEF);
   static const Color fatOrange = Color(0xFFFF9E57);
@@ -49,16 +50,20 @@ class AppColors {
   // Home meal cards
   static const Color breakfastGradientStart = Color(0xFFF7A7A6);
   static const Color breakfastGradientEnd = Color(0xFFF3B38A);
+
   static const Color lunchGradientStart = Color(0xFF7F97FF);
   static const Color lunchGradientEnd = Color(0xFF4B5FE2);
+
   static const Color snackGradientStart = Color(0xFFFF8FB1);
   static const Color snackGradientEnd = Color(0xFFFF5F93);
+
   static const Color dinnerGradientStart = Color(0xFF6E7CFF);
   static const Color dinnerGradientEnd = Color(0xFF2D2F9B);
 
   // Home calorie and macro accents
   static const Color calorieEatenLine = Color(0xFFE4E1EE);
   static const Color calorieGoalLine = Color(0xFFF7D8E2);
+
   static const Color macroCarbs = Color(0xFF5B9BD5);
   static const Color macroProtein = Color(0xFFFF6B9D);
   static const Color macroFat = Color(0xFFE8A000);

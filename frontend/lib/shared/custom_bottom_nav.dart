@@ -3,6 +3,7 @@ import 'package:lottie/lottie.dart';
 import '../../core/theme/app_colors.dart';
 import '../features/add_meal/add_meal_screen.dart';
 import '../../features/home/home_screen.dart';
+import '../features/screen/page_cook_screen/home_cooks_screen.dart';
 import '../features/posts/post_screen.dart';
 
 class NavItemData {
@@ -194,7 +195,7 @@ class CustomBottomNav extends StatelessWidget {
         page = const HomeScreen();
         break;
       case 1:
-        page = const DummyNavScreen(title: "Store", currentIndex: 1);
+        page = const HomeCooksScreen();
         break;
       case 3:
         page = const DummyNavScreen(title: "Recipe", currentIndex: 3);
