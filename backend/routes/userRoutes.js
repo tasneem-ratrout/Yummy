@@ -7,9 +7,9 @@ const {
   searchUsers,
   toggleBanUser,
   createUser,
-  updateUserRole
+  updateUserRole,
+  getProfile
 } = require('../controllers/userController');
-
 // Routes
 router.get('/all', verifyToken, adminOnly, getAllUsers);
 router.get('/search', verifyToken, adminOnly, searchUsers);
@@ -17,5 +17,5 @@ router.post('/create', verifyToken, adminOnly, createUser);
 router.patch('/:id/ban', verifyToken, adminOnly, toggleBanUser);
 router.patch('/:id/role', verifyToken, adminOnly, updateUserRole);
 router.delete('/:id', verifyToken, adminOnly, deleteUser);
-
+router.get('/profile', verifyToken, getProfile);
 module.exports = router;

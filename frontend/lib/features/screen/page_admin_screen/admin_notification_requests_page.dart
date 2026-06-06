@@ -7,6 +7,7 @@ import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../../core/config/app_config.dart';
+import '../../../../core/theme/app_colors.dart';
 
 const _kPrimaryDark = Color(0xFF0A1628);
 
@@ -125,20 +126,20 @@ class _AdminNotificationRequestsPageState
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: _kBackground,
-
+      backgroundColor: const Color(0xFFF5F7FA),
       appBar: AppBar(
-        backgroundColor: _kPrimaryDark,
-
-        iconTheme: const IconThemeData(color: Colors.white),
-
+        elevation: 0,
+        backgroundColor: Colors.white,
+        centerTitle: true,
+        iconTheme: const IconThemeData(color: AppColors.deepBlue),
         title: const Text(
           'Notification Requests',
-
-          style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+          style: TextStyle(
+            color: AppColors.deepBlue,
+            fontWeight: FontWeight.bold,
+          ),
         ),
       ),
-
       body: loading
           ? const Center(child: CircularProgressIndicator())
           : requests.isEmpty

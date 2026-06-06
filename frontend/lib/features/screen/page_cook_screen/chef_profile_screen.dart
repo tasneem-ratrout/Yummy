@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:http/http.dart' as http;
@@ -13,6 +14,26 @@ import '../../../core/services/favorite_service.dart';
 import 'CartScreen.dart';
 import '../../../core/services/chef_socket_service.dart';
 import '../../../core/services/saved_service.dart';
+
+Widget _webResponsiveBody(
+  BuildContext context, {
+  required Widget child,
+  double maxWidth = 1180,
+  EdgeInsetsGeometry? webPadding,
+}) {
+  final isWeb = kIsWeb && MediaQuery.of(context).size.width >= 900;
+  if (!isWeb) return child;
+
+  return Center(
+    child: ConstrainedBox(
+      constraints: BoxConstraints(maxWidth: maxWidth),
+      child: Padding(
+        padding: webPadding ?? const EdgeInsets.symmetric(horizontal: 24),
+        child: child,
+      ),
+    ),
+  );
+}
 
 const _kBlue = Color(0xFF005EB2);
 const _kBluePale = Color(0xFFD5E3FF);
@@ -658,32 +679,37 @@ class _ChefProfileScreenState extends State<ChefProfileScreen>
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: _kSurface,
-      body: _loadingChef
-          ? const Center(child: CircularProgressIndicator(color: _kBlue))
-          : _errorMessage != null
-          ? _buildErrorView()
-          : SingleChildScrollView(
-              child: Column(
-                children: [
-                  _buildAppBar(),
-                  _buildProfileHeader(),
-                  _buildStatsRow(),
-                  _buildBioSection(),
-                  _buildTabBar(),
-                  SizedBox(
-                    height: MediaQuery.of(context).size.height,
-                    child: IndexedStack(
-                      index: _tabController.index,
-                      children: [
-                        _buildRecipesTab(),
-                        _buildAboutTab(),
-                        _buildReviewsTab(),
-                      ],
+      body: _webResponsiveBody(
+        context,
+        maxWidth: 1180,
+        webPadding: const EdgeInsets.symmetric(horizontal: 24),
+        child: _loadingChef
+            ? const Center(child: CircularProgressIndicator(color: _kBlue))
+            : _errorMessage != null
+            ? _buildErrorView()
+            : SingleChildScrollView(
+                child: Column(
+                  children: [
+                    _buildAppBar(),
+                    _buildProfileHeader(),
+                    _buildStatsRow(),
+                    _buildBioSection(),
+                    _buildTabBar(),
+                    SizedBox(
+                      height: MediaQuery.of(context).size.height,
+                      child: IndexedStack(
+                        index: _tabController.index,
+                        children: [
+                          _buildRecipesTab(),
+                          _buildAboutTab(),
+                          _buildReviewsTab(),
+                        ],
+                      ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
-            ),
+      ),
     );
   }
 

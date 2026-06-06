@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:http/http.dart' as http;
@@ -6,7 +7,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../../../core/config/app_config.dart';
 import '../../../core/services/auth_service.dart';
 import 'package:image_picker/image_picker.dart';
-import 'dart:io';
+import 'dart:typed_data';
 import 'add_recipe_screen.dart';
 import 'recipe_details_screen_for_chef.dart';
 import 'package:frontend/features/auth/splash_screen.dart';
@@ -510,7 +511,7 @@ class _ChefProfileScreenState extends State<ChefProfileScreen>
       imageQuality: 70,
     );
     if (pickedFile == null) return;
-    final file = File(pickedFile.path);
+    final bytes = await pickedFile.readAsBytes();
     if (!mounted) return;
     setState(() => isSaving = true);
 
@@ -523,7 +524,9 @@ class _ChefProfileScreenState extends State<ChefProfileScreen>
         Uri.parse('${AppConfig.baseUrl}/chefs/image'),
       );
       request.headers['Authorization'] = 'Bearer $token';
-      request.files.add(await http.MultipartFile.fromPath('image', file.path));
+      request.files.add(
+        http.MultipartFile.fromBytes('image', bytes, filename: pickedFile.name),
+      );
       final response = await request.send();
 
       if (response.statusCode == 200) {
@@ -553,7 +556,7 @@ class _ChefProfileScreenState extends State<ChefProfileScreen>
       imageQuality: 70,
     );
     if (pickedFile == null) return;
-    final file = File(pickedFile.path);
+    final bytes = await pickedFile.readAsBytes();
     if (!mounted) return;
     setState(() => isSaving = true);
 
@@ -567,7 +570,11 @@ class _ChefProfileScreenState extends State<ChefProfileScreen>
       );
       request.headers['Authorization'] = 'Bearer $token';
       request.files.add(
-        await http.MultipartFile.fromPath('coverImage', file.path),
+        http.MultipartFile.fromBytes(
+          'coverImage',
+          bytes,
+          filename: pickedFile.name,
+        ),
       );
       final response = await request.send();
 
@@ -1452,273 +1459,302 @@ class _ChefProfileScreenState extends State<ChefProfileScreen>
           ),
         ],
       ),
-      body: SingleChildScrollView(
-        physics: const BouncingScrollPhysics(),
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.center,
-          children: [
-            GestureDetector(
-              onTap: _changeCoverImage,
-              child: Column(
-                children: [
-                  SizedBox(
-                    height: 180,
-                    width: double.infinity,
-                    child: ClipRRect(
-                      borderRadius: BorderRadius.circular(20),
-                      child: (chef?['coverImage'] ?? '').isNotEmpty
-                          ? Image.network(
-                              '${base}${chef?['coverImage']}?t=$cacheBuster',
-                              fit: BoxFit.cover,
-                              errorBuilder: (_, __, ___) =>
-                                  _buildCoverFallback(),
-                            )
-                          : _buildCoverFallback(),
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 16,
-                      vertical: 8,
-                    ),
-                    decoration: BoxDecoration(
-                      color: _kPrimaryLight,
-                      borderRadius: BorderRadius.circular(24),
+      body: Center(
+        child: ConstrainedBox(
+          constraints: BoxConstraints(
+            maxWidth: _isWebLayout(context) ? 1100 : double.infinity,
+          ),
+          child: SingleChildScrollView(
+            physics: const BouncingScrollPhysics(),
+            padding: EdgeInsets.all(_isWebLayout(context) ? 32 : 20),
+            child: Container(
+              padding: EdgeInsets.all(_isWebLayout(context) ? 24 : 0),
+              decoration: _isWebLayout(context)
+                  ? BoxDecoration(
+                      color: _kCard,
+                      borderRadius: BorderRadius.circular(28),
                       boxShadow: [
                         BoxShadow(
-                          color: _kPrimaryLight.withOpacity(0.3),
-                          blurRadius: 8,
-                          offset: const Offset(0, 2),
-                        ),
-                      ],
-                    ),
-                    child: const Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(
-                          Icons.camera_alt_rounded,
-                          color: Colors.white,
-                          size: 18,
-                        ),
-                        SizedBox(width: 6),
-                        Text(
-                          'Change Cover',
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontSize: 14,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 32),
-            GestureDetector(
-              onTap: _changeProfileImage,
-              child: Column(
-                children: [
-                  Container(
-                    width: 120,
-                    height: 120,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      border: Border.all(color: _kCard, width: 5),
-                      boxShadow: [
-                        BoxShadow(
-                          color: _kPrimaryLight.withOpacity(0.3),
-                          blurRadius: 20,
+                          color: Colors.black.withOpacity(0.05),
+                          blurRadius: 24,
                           offset: const Offset(0, 8),
                         ),
                       ],
-                    ),
-                    child: ClipOval(
-                      child: (chef?['profileImage'] ?? '').isNotEmpty
-                          ? Image.network(
-                              '${base}${chef?['profileImage']}?t=$cacheBuster',
-                              fit: BoxFit.cover,
-                              errorBuilder: (_, __, ___) =>
-                                  _buildAvatarFallback(chef?['name'] ?? 'Chef'),
-                            )
-                          : _buildAvatarFallback(chef?['name'] ?? 'Chef'),
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 16,
-                      vertical: 8,
-                    ),
-                    decoration: BoxDecoration(
-                      color: _kPrimaryLight,
-                      borderRadius: BorderRadius.circular(24),
-                      boxShadow: [
-                        BoxShadow(
-                          color: _kPrimaryLight.withOpacity(0.3),
-                          blurRadius: 8,
-                          offset: const Offset(0, 2),
-                        ),
-                      ],
-                    ),
-                    child: const Row(
-                      mainAxisSize: MainAxisSize.min,
+                    )
+                  : null,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  GestureDetector(
+                    onTap: _changeCoverImage,
+                    child: Column(
                       children: [
-                        Icon(
-                          Icons.camera_alt_rounded,
-                          color: Colors.white,
-                          size: 18,
-                        ),
-                        SizedBox(width: 6),
-                        Text(
-                          'Change Photo',
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontSize: 14,
-                            fontWeight: FontWeight.w600,
+                        SizedBox(
+                          height: 180,
+                          width: double.infinity,
+                          child: ClipRRect(
+                            borderRadius: BorderRadius.circular(20),
+                            child: (chef?['coverImage'] ?? '').isNotEmpty
+                                ? Image.network(
+                                    '${base}${chef?['coverImage']}?t=$cacheBuster',
+                                    fit: BoxFit.cover,
+                                    errorBuilder: (_, __, ___) =>
+                                        _buildCoverFallback(),
+                                  )
+                                : _buildCoverFallback(),
                           ),
                         ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 40),
-            _buildModernTextField(
-              controller: _nameCtrl,
-              label: 'Name',
-              hint: 'Enter your name',
-              icon: Icons.person_rounded,
-            ),
-            const SizedBox(height: 20),
-            _buildModernTextField(
-              controller: _bioCtrl,
-              label: 'Bio',
-              hint: 'Tell us about yourself...',
-              icon: Icons.description_rounded,
-              maxLines: 4,
-            ),
-            const SizedBox(height: 20),
-            Container(
-              padding: const EdgeInsets.all(20),
-              decoration: BoxDecoration(
-                color: _kCard,
-                borderRadius: BorderRadius.circular(20),
-                border: Border.all(color: _kBorder),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Row(
-                    children: [
-                      Icon(Icons.star_rounded, color: _kAccentOrange, size: 20),
-                      SizedBox(width: 8),
-                      Text(
-                        'Specialties',
-                        style: TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
-                          color: _kText,
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 16),
-                  if (_specialties.isNotEmpty)
-                    Wrap(
-                      spacing: 8,
-                      runSpacing: 8,
-                      children: _specialties
-                          .map(
-                            (s) => Chip(
-                              label: Text(s),
-                              deleteIcon: const Icon(
-                                Icons.close_rounded,
+                        const SizedBox(height: 12),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 16,
+                            vertical: 8,
+                          ),
+                          decoration: BoxDecoration(
+                            color: _kPrimaryLight,
+                            borderRadius: BorderRadius.circular(24),
+                            boxShadow: [
+                              BoxShadow(
+                                color: _kPrimaryLight.withOpacity(0.3),
+                                blurRadius: 8,
+                                offset: const Offset(0, 2),
+                              ),
+                            ],
+                          ),
+                          child: const Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(
+                                Icons.camera_alt_rounded,
+                                color: Colors.white,
                                 size: 18,
                               ),
-                              onDeleted: () => _removeSpecialty(s),
-                              backgroundColor: _kAccent.withOpacity(0.1),
-                              labelStyle: const TextStyle(
-                                color: _kAccent,
-                                fontWeight: FontWeight.w600,
-                              ),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(12),
-                                side: BorderSide(
-                                  color: _kAccent.withOpacity(0.3),
+                              SizedBox(width: 6),
+                              Text(
+                                'Change Cover',
+                                style: TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w600,
                                 ),
                               ),
-                            ),
-                          )
-                          .toList(),
-                    ),
-                  const SizedBox(height: 12),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: TextField(
-                          controller: _newSpecialtyCtrl,
-                          decoration: InputDecoration(
-                            hintText: 'Add specialty',
-                            filled: true,
-                            fillColor: _kBackground,
-                            border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(14),
-                              borderSide: BorderSide.none,
-                            ),
-                            contentPadding: const EdgeInsets.symmetric(
-                              horizontal: 16,
-                              vertical: 12,
-                            ),
+                            ],
                           ),
                         ),
-                      ),
-                      const SizedBox(width: 12),
-                      Container(
-                        decoration: BoxDecoration(
-                          color: _kAccent,
-                          borderRadius: BorderRadius.circular(14),
-                          boxShadow: [
-                            BoxShadow(
-                              color: _kAccent.withOpacity(0.3),
-                              blurRadius: 8,
-                              offset: const Offset(0, 2),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 32),
+                  GestureDetector(
+                    onTap: _changeProfileImage,
+                    child: Column(
+                      children: [
+                        Container(
+                          width: 120,
+                          height: 120,
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            border: Border.all(color: _kCard, width: 5),
+                            boxShadow: [
+                              BoxShadow(
+                                color: _kPrimaryLight.withOpacity(0.3),
+                                blurRadius: 20,
+                                offset: const Offset(0, 8),
+                              ),
+                            ],
+                          ),
+                          child: ClipOval(
+                            child: (chef?['profileImage'] ?? '').isNotEmpty
+                                ? Image.network(
+                                    '${base}${chef?['profileImage']}?t=$cacheBuster',
+                                    fit: BoxFit.cover,
+                                    errorBuilder: (_, __, ___) =>
+                                        _buildAvatarFallback(
+                                          chef?['name'] ?? 'Chef',
+                                        ),
+                                  )
+                                : _buildAvatarFallback(chef?['name'] ?? 'Chef'),
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 16,
+                            vertical: 8,
+                          ),
+                          decoration: BoxDecoration(
+                            color: _kPrimaryLight,
+                            borderRadius: BorderRadius.circular(24),
+                            boxShadow: [
+                              BoxShadow(
+                                color: _kPrimaryLight.withOpacity(0.3),
+                                blurRadius: 8,
+                                offset: const Offset(0, 2),
+                              ),
+                            ],
+                          ),
+                          child: const Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(
+                                Icons.camera_alt_rounded,
+                                color: Colors.white,
+                                size: 18,
+                              ),
+                              SizedBox(width: 6),
+                              Text(
+                                'Change Photo',
+                                style: TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 40),
+                  _buildModernTextField(
+                    controller: _nameCtrl,
+                    label: 'Name',
+                    hint: 'Enter your name',
+                    icon: Icons.person_rounded,
+                  ),
+                  const SizedBox(height: 20),
+                  _buildModernTextField(
+                    controller: _bioCtrl,
+                    label: 'Bio',
+                    hint: 'Tell us about yourself...',
+                    icon: Icons.description_rounded,
+                    maxLines: 4,
+                  ),
+                  const SizedBox(height: 20),
+                  Container(
+                    padding: const EdgeInsets.all(20),
+                    decoration: BoxDecoration(
+                      color: _kCard,
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(color: _kBorder),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Row(
+                          children: [
+                            Icon(
+                              Icons.star_rounded,
+                              color: _kAccentOrange,
+                              size: 20,
+                            ),
+                            SizedBox(width: 8),
+                            Text(
+                              'Specialties',
+                              style: TextStyle(
+                                fontSize: 18,
+                                fontWeight: FontWeight.bold,
+                                color: _kText,
+                              ),
                             ),
                           ],
                         ),
-                        child: IconButton(
-                          onPressed: _addSpecialty,
-                          icon: const Icon(
-                            Icons.add_rounded,
-                            color: Colors.white,
+                        const SizedBox(height: 16),
+                        if (_specialties.isNotEmpty)
+                          Wrap(
+                            spacing: 8,
+                            runSpacing: 8,
+                            children: _specialties
+                                .map(
+                                  (s) => Chip(
+                                    label: Text(s),
+                                    deleteIcon: const Icon(
+                                      Icons.close_rounded,
+                                      size: 18,
+                                    ),
+                                    onDeleted: () => _removeSpecialty(s),
+                                    backgroundColor: _kAccent.withOpacity(0.1),
+                                    labelStyle: const TextStyle(
+                                      color: _kAccent,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(12),
+                                      side: BorderSide(
+                                        color: _kAccent.withOpacity(0.3),
+                                      ),
+                                    ),
+                                  ),
+                                )
+                                .toList(),
                           ),
+                        const SizedBox(height: 12),
+                        Row(
+                          children: [
+                            Expanded(
+                              child: TextField(
+                                controller: _newSpecialtyCtrl,
+                                decoration: InputDecoration(
+                                  hintText: 'Add specialty',
+                                  filled: true,
+                                  fillColor: _kBackground,
+                                  border: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(14),
+                                    borderSide: BorderSide.none,
+                                  ),
+                                  contentPadding: const EdgeInsets.symmetric(
+                                    horizontal: 16,
+                                    vertical: 12,
+                                  ),
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            Container(
+                              decoration: BoxDecoration(
+                                color: _kAccent,
+                                borderRadius: BorderRadius.circular(14),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: _kAccent.withOpacity(0.3),
+                                    blurRadius: 8,
+                                    offset: const Offset(0, 2),
+                                  ),
+                                ],
+                              ),
+                              child: IconButton(
+                                onPressed: _addSpecialty,
+                                icon: const Icon(
+                                  Icons.add_rounded,
+                                  color: Colors.white,
+                                ),
+                              ),
+                            ),
+                          ],
                         ),
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
+                  const SizedBox(height: 20),
+                  _buildModernTextField(
+                    controller: _expCtrl,
+                    label: 'Experience',
+                    hint: 'e.g. 5 years as head chef',
+                    icon: Icons.work_rounded,
+                  ),
+                  const SizedBox(height: 20),
+                  _buildModernTextField(
+                    controller: _locCtrl,
+                    label: 'Location',
+                    hint: 'e.g. New York, USA',
+                    icon: Icons.location_on_rounded,
+                  ),
+                  const SizedBox(height: 40),
                 ],
               ),
             ),
-            const SizedBox(height: 20),
-            _buildModernTextField(
-              controller: _expCtrl,
-              label: 'Experience',
-              hint: 'e.g. 5 years as head chef',
-              icon: Icons.work_rounded,
-            ),
-            const SizedBox(height: 20),
-            _buildModernTextField(
-              controller: _locCtrl,
-              label: 'Location',
-              hint: 'e.g. New York, USA',
-              icon: Icons.location_on_rounded,
-            ),
-            const SizedBox(height: 40),
-          ],
+          ),
         ),
       ),
     );
@@ -1774,6 +1810,8 @@ class _ChefProfileScreenState extends State<ChefProfileScreen>
   }
 
   Widget _buildRecipesTab() {
+    final isWeb = _isWebLayout(context);
+
     if (loadingRecipes) {
       return const Center(
         child: Column(
@@ -1790,7 +1828,6 @@ class _ChefProfileScreenState extends State<ChefProfileScreen>
       );
     }
 
-    // ✅ إذا ما في وصفات
     if (recipes.isEmpty) {
       return Column(
         children: [
@@ -1814,9 +1851,7 @@ class _ChefProfileScreenState extends State<ChefProfileScreen>
                           color: _kPrimaryLight,
                         ),
                       ),
-
                       const SizedBox(height: 16),
-
                       const Text(
                         'No Recipes Yet',
                         style: TextStyle(
@@ -1825,9 +1860,7 @@ class _ChefProfileScreenState extends State<ChefProfileScreen>
                           color: _kText,
                         ),
                       ),
-
                       const SizedBox(height: 8),
-
                       const Text(
                         'Start sharing your culinary creations!',
                         style: TextStyle(color: _kTextSecondary),
@@ -1838,40 +1871,43 @@ class _ChefProfileScreenState extends State<ChefProfileScreen>
               ),
             ),
           ),
-
-          // 🔥 زر الإضافة تحت
           SafeArea(
             child: Padding(
-              padding: const EdgeInsets.fromLTRB(16, 0, 16, 20),
-              child: SizedBox(
-                width: double.infinity,
-                child: ElevatedButton.icon(
-                  onPressed: () async {
-                    final result = await Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (_) => const AddRecipeScreen(),
+              padding: EdgeInsets.fromLTRB(
+                isWeb ? 24 : 16,
+                0,
+                isWeb ? 24 : 16,
+                20,
+              ),
+              child: ConstrainedBox(
+                constraints: BoxConstraints(
+                  maxWidth: isWeb ? 420 : double.infinity,
+                ),
+                child: SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton.icon(
+                    onPressed: () async {
+                      final result = await Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => const AddRecipeScreen(),
+                        ),
+                      );
+
+                      if (result == true) {
+                        await _loadChefRecipes();
+                        setState(() {});
+                      }
+                    },
+                    icon: const Icon(Icons.add_rounded),
+                    label: const Text('Add Recipe'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: _kAccent,
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(vertical: 16),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(18),
                       ),
-                    );
-
-                    if (result == true) {
-                      await _loadChefRecipes();
-                      setState(() {});
-                    }
-                  },
-
-                  icon: const Icon(Icons.add_rounded),
-
-                  label: const Text('Add Recipe'),
-
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: _kAccent,
-                    foregroundColor: Colors.white,
-
-                    padding: const EdgeInsets.symmetric(vertical: 16),
-
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(18),
                     ),
                   ),
                 ),
@@ -1882,67 +1918,77 @@ class _ChefProfileScreenState extends State<ChefProfileScreen>
       );
     }
 
-    // ✅ إذا في وصفات
     return Stack(
       children: [
         CustomScrollView(
           slivers: [
             SliverPadding(
-              padding: const EdgeInsets.fromLTRB(12, 12, 12, 100),
-
-              sliver: SliverGrid(
-                gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                  crossAxisCount: 2,
-                  crossAxisSpacing: 12,
-                  mainAxisSpacing: 12,
-                  childAspectRatio: 0.58,
-                ),
-
-                delegate: SliverChildBuilderDelegate(
-                  (context, index) => _buildRecipeCard(recipes[index]),
-
-                  childCount: recipes.length,
-                ),
+              padding: EdgeInsets.fromLTRB(
+                isWeb ? 24 : 12,
+                isWeb ? 24 : 12,
+                isWeb ? 24 : 12,
+                100,
               ),
+              sliver: isWeb
+                  ? SliverGrid(
+                      gridDelegate:
+                          const SliverGridDelegateWithMaxCrossAxisExtent(
+                            maxCrossAxisExtent: 300,
+                            mainAxisExtent: 355,
+                            crossAxisSpacing: 18,
+                            mainAxisSpacing: 18,
+                          ),
+                      delegate: SliverChildBuilderDelegate(
+                        (context, index) => _buildRecipeCard(recipes[index]),
+                        childCount: recipes.length,
+                      ),
+                    )
+                  : SliverGrid(
+                      gridDelegate:
+                          const SliverGridDelegateWithFixedCrossAxisCount(
+                            crossAxisCount: 2,
+                            crossAxisSpacing: 12,
+                            mainAxisSpacing: 12,
+                            childAspectRatio: 0.58,
+                          ),
+                      delegate: SliverChildBuilderDelegate(
+                        (context, index) => _buildRecipeCard(recipes[index]),
+                        childCount: recipes.length,
+                      ),
+                    ),
             ),
           ],
         ),
-
-        // 🔥 زر ثابت تحت
         Positioned(
           bottom: 20,
-          left: 16,
-          right: 16,
-
+          left: isWeb ? null : 16,
+          right: isWeb ? 24 : 16,
           child: SafeArea(
-            child: ElevatedButton.icon(
-              onPressed: () async {
-                final result = await Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (_) => const AddRecipeScreen()),
-                );
+            child: SizedBox(
+              width: isWeb ? 220 : double.infinity,
+              child: ElevatedButton.icon(
+                onPressed: () async {
+                  final result = await Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => const AddRecipeScreen()),
+                  );
 
-                if (result == true) {
-                  await _loadChefRecipes();
-                  setState(() {});
-                }
-              },
-
-              icon: const Icon(Icons.add_rounded),
-
-              label: const Text('Add Recipe'),
-
-              style: ElevatedButton.styleFrom(
-                backgroundColor: _kAccent,
-                foregroundColor: Colors.white,
-
-                padding: const EdgeInsets.symmetric(vertical: 16),
-
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(18),
+                  if (result == true) {
+                    await _loadChefRecipes();
+                    setState(() {});
+                  }
+                },
+                icon: const Icon(Icons.add_rounded),
+                label: const Text('Add Recipe'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: _kAccent,
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(18),
+                  ),
+                  elevation: 8,
                 ),
-
-                elevation: 8,
               ),
             ),
           ),
@@ -2187,151 +2233,160 @@ class _ChefProfileScreenState extends State<ChefProfileScreen>
     final experience = chef?['experience'] ?? 'Not specified';
     final location = chef?['location'] ?? 'Not specified';
 
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(20),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Bio Section
-          if (bio.isNotEmpty && bio != 'No bio yet')
-            Container(
-              padding: const EdgeInsets.all(20),
-              decoration: BoxDecoration(
-                color: _kCard,
-                borderRadius: BorderRadius.circular(20),
-                border: Border.all(color: _kBorder),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
+    return Center(
+      child: ConstrainedBox(
+        constraints: BoxConstraints(
+          maxWidth: _isWebLayout(context) ? 900 : double.infinity,
+        ),
+        child: SingleChildScrollView(
+          padding: EdgeInsets.all(_isWebLayout(context) ? 24 : 20),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Bio Section
+              if (bio.isNotEmpty && bio != 'No bio yet')
+                Container(
+                  padding: const EdgeInsets.all(20),
+                  decoration: BoxDecoration(
+                    color: _kCard,
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(color: _kBorder),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Container(
-                        padding: const EdgeInsets.all(8),
-                        decoration: BoxDecoration(
-                          color: _kPrimaryLight.withOpacity(0.1),
-                          borderRadius: BorderRadius.circular(10),
-                        ),
-                        child: const Icon(
-                          Icons.format_quote_rounded,
-                          color: _kPrimaryLight,
-                          size: 20,
-                        ),
+                      Row(
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.all(8),
+                            decoration: BoxDecoration(
+                              color: _kPrimaryLight.withOpacity(0.1),
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            child: const Icon(
+                              Icons.format_quote_rounded,
+                              color: _kPrimaryLight,
+                              size: 20,
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          const Text(
+                            'About Me',
+                            style: TextStyle(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 16,
+                              color: _kText,
+                            ),
+                          ),
+                        ],
                       ),
-                      const SizedBox(width: 12),
-                      const Text(
-                        'About Me',
-                        style: TextStyle(
-                          fontWeight: FontWeight.bold,
-                          fontSize: 16,
-                          color: _kText,
+                      const SizedBox(height: 12),
+                      Text(
+                        bio,
+                        style: const TextStyle(
+                          fontSize: 14,
+                          height: 1.6,
+                          color: _kTextSecondary,
                         ),
                       ),
                     ],
                   ),
-                  const SizedBox(height: 12),
-                  Text(
-                    bio,
-                    style: const TextStyle(
-                      fontSize: 14,
-                      height: 1.6,
-                      color: _kTextSecondary,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          const SizedBox(height: 16),
+                ),
+              const SizedBox(height: 16),
 
-          // Specialties Section
-          Container(
-            padding: const EdgeInsets.all(20),
-            decoration: BoxDecoration(
-              color: _kCard,
-              borderRadius: BorderRadius.circular(20),
-              border: Border.all(color: _kBorder),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
+              // Specialties Section
+              Container(
+                padding: const EdgeInsets.all(20),
+                decoration: BoxDecoration(
+                  color: _kCard,
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(color: _kBorder),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Container(
-                      padding: const EdgeInsets.all(8),
-                      decoration: BoxDecoration(
-                        color: _kAccentOrange.withOpacity(0.1),
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                      child: const Icon(
-                        Icons.star_rounded,
-                        color: _kAccentOrange,
-                        size: 20,
-                      ),
+                    Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(8),
+                          decoration: BoxDecoration(
+                            color: _kAccentOrange.withOpacity(0.1),
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          child: const Icon(
+                            Icons.star_rounded,
+                            color: _kAccentOrange,
+                            size: 20,
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        const Text(
+                          'Specialties',
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                            color: _kText,
+                          ),
+                        ),
+                      ],
                     ),
-                    const SizedBox(width: 12),
-                    const Text(
-                      'Specialties',
-                      style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
-                        color: _kText,
+                    const SizedBox(height: 16),
+                    if (_specialties.isEmpty)
+                      const Text(
+                        'No specialties added yet',
+                        style: TextStyle(color: _kTextSecondary),
+                      )
+                    else
+                      Wrap(
+                        spacing: 8,
+                        runSpacing: 8,
+                        children: _specialties.map((s) {
+                          return Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 14,
+                              vertical: 8,
+                            ),
+                            decoration: BoxDecoration(
+                              color: _kAccent.withOpacity(0.1),
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(
+                                color: _kAccent.withOpacity(0.3),
+                              ),
+                            ),
+                            child: Text(
+                              s,
+                              style: const TextStyle(
+                                color: _kAccent,
+                                fontSize: 13,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          );
+                        }).toList(),
                       ),
+                    const Padding(
+                      padding: EdgeInsets.symmetric(vertical: 20),
+                      child: Divider(height: 1),
+                    ),
+                    _buildDetailRow(
+                      icon: Icons.work_rounded,
+                      iconColor: _kPrimaryLight,
+                      title: 'Experience',
+                      value: experience,
+                    ),
+                    const SizedBox(height: 16),
+                    _buildDetailRow(
+                      icon: Icons.location_on_rounded,
+                      iconColor: _kError,
+                      title: 'Location',
+                      value: location,
                     ),
                   ],
                 ),
-                const SizedBox(height: 16),
-                if (_specialties.isEmpty)
-                  const Text(
-                    'No specialties added yet',
-                    style: TextStyle(color: _kTextSecondary),
-                  )
-                else
-                  Wrap(
-                    spacing: 8,
-                    runSpacing: 8,
-                    children: _specialties.map((s) {
-                      return Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 14,
-                          vertical: 8,
-                        ),
-                        decoration: BoxDecoration(
-                          color: _kAccent.withOpacity(0.1),
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(color: _kAccent.withOpacity(0.3)),
-                        ),
-                        child: Text(
-                          s,
-                          style: const TextStyle(
-                            color: _kAccent,
-                            fontSize: 13,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                      );
-                    }).toList(),
-                  ),
-                const Padding(
-                  padding: EdgeInsets.symmetric(vertical: 20),
-                  child: Divider(height: 1),
-                ),
-                _buildDetailRow(
-                  icon: Icons.work_rounded,
-                  iconColor: _kPrimaryLight,
-                  title: 'Experience',
-                  value: experience,
-                ),
-                const SizedBox(height: 16),
-                _buildDetailRow(
-                  icon: Icons.location_on_rounded,
-                  iconColor: _kError,
-                  title: 'Location',
-                  value: location,
-                ),
-              ],
-            ),
+              ),
+            ],
           ),
-        ],
+        ),
       ),
     );
   }
@@ -2382,6 +2437,8 @@ class _ChefProfileScreenState extends State<ChefProfileScreen>
   // ⭐ REVIEWS TAB - Direct Display (FIXED Overflow)
   // ============================================================
   Widget _buildReviewsTab() {
+    final isWeb = _isWebLayout(context);
+
     if (loadingReviews) {
       return const Center(child: CircularProgressIndicator());
     }
@@ -2390,20 +2447,33 @@ class _ChefProfileScreenState extends State<ChefProfileScreen>
       return const Center(child: Text('No reviews yet'));
     }
 
+    if (isWeb) {
+      return GridView.builder(
+        padding: const EdgeInsets.all(24),
+        itemCount: reviews.length,
+        gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
+          maxCrossAxisExtent: 430,
+          mainAxisExtent: 170,
+          crossAxisSpacing: 18,
+          mainAxisSpacing: 18,
+        ),
+        itemBuilder: (context, index) {
+          final review = reviews[index];
+          final user = review['userId'] ?? {};
+          final rating = review['rating'] ?? 0;
+          return _buildReviewCard(user, rating, review);
+        },
+      );
+    }
+
     return ListView.separated(
       padding: const EdgeInsets.all(16),
-
       itemCount: reviews.length,
-
       separatorBuilder: (_, __) => const SizedBox(height: 12),
-
       itemBuilder: (context, index) {
         final review = reviews[index];
-
         final user = review['userId'] ?? {};
-
         final rating = review['rating'] ?? 0;
-
         return _buildReviewCard(user, rating, review);
       },
     );
@@ -2699,6 +2769,21 @@ class _ChefProfileScreenState extends State<ChefProfileScreen>
     );
   }
 
+  bool _isWebLayout(BuildContext context) {
+    return kIsWeb && MediaQuery.of(context).size.width >= 900;
+  }
+
+  Widget _webPageWrapper(Widget child) {
+    if (!_isWebLayout(context)) return child;
+
+    return Center(
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 1320),
+        child: child,
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     if (isEditing) return _buildEditModeUI();
@@ -2825,181 +2910,192 @@ class _ChefProfileScreenState extends State<ChefProfileScreen>
     final recipesCount = recipes.length.toString();
     return Scaffold(
       backgroundColor: _kBackground,
-      body: NestedScrollView(
-        headerSliverBuilder: (context, innerBoxIsScrolled) {
-          return [
-            SliverAppBar(
-              automaticallyImplyLeading: false,
-              expandedHeight: 200,
-              pinned: true,
-              backgroundColor: _kPrimaryDark,
-              flexibleSpace: FlexibleSpaceBar(
-                background: coverImage.isNotEmpty
-                    ? Image.network(
-                        '$base$coverImage?t=$cacheBuster',
-                        fit: BoxFit.cover,
-                        errorBuilder: (_, __, ___) => _buildCoverFallback(),
-                      )
-                    : _buildCoverFallback(),
-              ),
-              actions: [
-                const SizedBox(width: 8),
+      body: Center(
+        child: ConstrainedBox(
+          constraints: BoxConstraints(
+            maxWidth: _isWebLayout(context) ? 1320 : double.infinity,
+          ),
+          child: NestedScrollView(
+            headerSliverBuilder: (context, innerBoxIsScrolled) {
+              return [
+                SliverAppBar(
+                  automaticallyImplyLeading: false,
+                  expandedHeight: _isWebLayout(context) ? 260 : 200,
+                  pinned: true,
+                  backgroundColor: _kPrimaryDark,
+                  flexibleSpace: FlexibleSpaceBar(
+                    background: coverImage.isNotEmpty
+                        ? Image.network(
+                            '$base$coverImage?t=$cacheBuster',
+                            fit: BoxFit.cover,
+                            errorBuilder: (_, __, ___) => _buildCoverFallback(),
+                          )
+                        : _buildCoverFallback(),
+                  ),
+                  actions: [
+                    const SizedBox(width: 8),
 
-                // ✏️ EDIT
-                _buildTopIcon(
-                  icon: Icons.edit_rounded,
-                  color: _kPrimaryLight,
-                  onTap: () => setState(() => isEditing = true),
+                    // ✏️ EDIT
+                    _buildTopIcon(
+                      icon: Icons.edit_rounded,
+                      color: _kPrimaryLight,
+                      onTap: () => setState(() => isEditing = true),
+                    ),
+
+                    const SizedBox(width: 8),
+
+                    // ⚙️ SETTINGS
+                    _buildTopIcon(
+                      icon: Icons.settings_rounded,
+                      color: _kAccent,
+                      onTap: _openSettingsSheet,
+                    ),
+
+                    const SizedBox(width: 12),
+                  ],
+                  bottom: PreferredSize(
+                    preferredSize: const Size.fromHeight(120),
+                    child: Column(
+                      children: [
+                        Transform.translate(
+                          offset: const Offset(0, 50),
+                          child: Container(
+                            width: 100,
+                            height: 100,
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              border: Border.all(color: _kCard, width: 4),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: _kPrimaryLight.withOpacity(0.3),
+                                  blurRadius: 20,
+                                ),
+                              ],
+                            ),
+                            child: ClipOval(
+                              child: image.isNotEmpty
+                                  ? Image.network(
+                                      '$base$image?t=$cacheBuster',
+                                      fit: BoxFit.cover,
+                                      errorBuilder: (_, __, ___) =>
+                                          _buildAvatarFallback(name),
+                                    )
+                                  : _buildAvatarFallback(name),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 60),
+                      ],
+                    ),
+                  ),
                 ),
-
-                const SizedBox(width: 8),
-
-                // ⚙️ SETTINGS
-                _buildTopIcon(
-                  icon: Icons.settings_rounded,
-                  color: _kAccent,
-                  onTap: _openSettingsSheet,
-                ),
-
-                const SizedBox(width: 12),
-              ],
-              bottom: PreferredSize(
-                preferredSize: const Size.fromHeight(120),
-                child: Column(
-                  children: [
-                    Transform.translate(
-                      offset: const Offset(0, 50),
-                      child: Container(
-                        width: 100,
-                        height: 100,
+                SliverToBoxAdapter(
+                  child: Column(
+                    children: [
+                      const SizedBox(height: 8),
+                      Text(
+                        name,
+                        style: const TextStyle(
+                          fontSize: 24,
+                          fontWeight: FontWeight.bold,
+                          color: _kText,
+                        ),
+                        textAlign: TextAlign.center,
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        email,
+                        style: const TextStyle(
+                          fontSize: 14,
+                          color: _kTextSecondary,
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      Container(
+                        margin: const EdgeInsets.symmetric(horizontal: 20),
+                        padding: const EdgeInsets.all(16),
                         decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          border: Border.all(color: _kCard, width: 4),
-                          boxShadow: [
-                            BoxShadow(
-                              color: _kPrimaryLight.withOpacity(0.3),
-                              blurRadius: 20,
+                          color: _kCard,
+                          borderRadius: BorderRadius.circular(20),
+                          border: Border.all(color: _kBorder),
+                        ),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                          children: [
+                            _buildStatItem(
+                              rating.toStringAsFixed(1),
+                              'Rating',
+                              Icons.star_rounded,
+                              iconColor: _kAccentOrange,
+                              onTap: () => _tabController.animateTo(2),
+                            ),
+
+                            Container(width: 1, height: 50, color: _kBorder),
+                            _buildStatItem(
+                              recipesCount,
+                              'Recipes',
+                              Icons.restaurant_rounded,
+                              iconColor: _kPrimaryLight,
+                              onTap: () => _tabController.animateTo(0),
                             ),
                           ],
                         ),
-                        child: ClipOval(
-                          child: image.isNotEmpty
-                              ? Image.network(
-                                  '$base$image?t=$cacheBuster',
-                                  fit: BoxFit.cover,
-                                  errorBuilder: (_, __, ___) =>
-                                      _buildAvatarFallback(name),
-                                )
-                              : _buildAvatarFallback(name),
-                        ),
                       ),
-                    ),
-                    const SizedBox(height: 60),
-                  ],
-                ),
-              ),
-            ),
-            SliverToBoxAdapter(
-              child: Column(
-                children: [
-                  const SizedBox(height: 8),
-                  Text(
-                    name,
-                    style: const TextStyle(
-                      fontSize: 24,
-                      fontWeight: FontWeight.bold,
-                      color: _kText,
-                    ),
-                    textAlign: TextAlign.center,
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    email,
-                    style: const TextStyle(
-                      fontSize: 14,
-                      color: _kTextSecondary,
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  Container(
-                    margin: const EdgeInsets.symmetric(horizontal: 20),
-                    padding: const EdgeInsets.all(16),
-                    decoration: BoxDecoration(
-                      color: _kCard,
-                      borderRadius: BorderRadius.circular(20),
-                      border: Border.all(color: _kBorder),
-                    ),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                      children: [
-                        _buildStatItem(
-                          rating.toStringAsFixed(1),
-                          'Rating',
-                          Icons.star_rounded,
-                          iconColor: _kAccentOrange,
-                          onTap: () => _tabController.animateTo(2),
+                      const SizedBox(height: 16),
+                      // Modern Tab Bar Design
+                      Container(
+                        margin: const EdgeInsets.symmetric(horizontal: 20),
+                        padding: const EdgeInsets.all(4),
+                        decoration: BoxDecoration(
+                          color: _kBackground,
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(color: _kBorder),
                         ),
-
-                        Container(width: 1, height: 50, color: _kBorder),
-                        _buildStatItem(
-                          recipesCount,
-                          'Recipes',
-                          Icons.restaurant_rounded,
-                          iconColor: _kPrimaryLight,
-                          onTap: () => _tabController.animateTo(0),
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  // Modern Tab Bar Design
-                  Container(
-                    margin: const EdgeInsets.symmetric(horizontal: 20),
-                    padding: const EdgeInsets.all(4),
-                    decoration: BoxDecoration(
-                      color: _kBackground,
-                      borderRadius: BorderRadius.circular(16),
-                      border: Border.all(color: _kBorder),
-                    ),
-                    child: TabBar(
-                      controller: _tabController,
-                      labelColor: _kPrimaryLight,
-                      unselectedLabelColor: _kTextSecondary,
-                      indicator: BoxDecoration(
-                        color: _kCard,
-                        borderRadius: BorderRadius.circular(12),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black.withOpacity(0.05),
-                            blurRadius: 4,
-                            offset: const Offset(0, 2),
+                        child: TabBar(
+                          controller: _tabController,
+                          labelColor: _kPrimaryLight,
+                          unselectedLabelColor: _kTextSecondary,
+                          indicator: BoxDecoration(
+                            color: _kCard,
+                            borderRadius: BorderRadius.circular(12),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black.withOpacity(0.05),
+                                blurRadius: 4,
+                                offset: const Offset(0, 2),
+                              ),
+                            ],
                           ),
-                        ],
+                          labelStyle: const TextStyle(
+                            fontWeight: FontWeight.w600,
+                            fontSize: 14,
+                          ),
+                          unselectedLabelStyle: const TextStyle(
+                            fontWeight: FontWeight.w500,
+                            fontSize: 14,
+                          ),
+                          tabs: const [
+                            Tab(text: '🍔 RECIPES'),
+                            Tab(text: '👨‍🍳 ABOUT'),
+                            Tab(text: '⭐ REVIEWS'),
+                          ],
+                        ),
                       ),
-                      labelStyle: const TextStyle(
-                        fontWeight: FontWeight.w600,
-                        fontSize: 14,
-                      ),
-                      unselectedLabelStyle: const TextStyle(
-                        fontWeight: FontWeight.w500,
-                        fontSize: 14,
-                      ),
-                      tabs: const [
-                        Tab(text: '🍔 RECIPES'),
-                        Tab(text: '👨‍🍳 ABOUT'),
-                        Tab(text: '⭐ REVIEWS'),
-                      ],
-                    ),
+                      const SizedBox(height: 12),
+                    ],
                   ),
-                  const SizedBox(height: 12),
-                ],
-              ),
+                ),
+              ];
+            },
+            body: TabBarView(
+              controller: _tabController,
+              children: [
+                _buildRecipesTab(),
+                _buildAboutTab(),
+                _buildReviewsTab(),
+              ],
             ),
-          ];
-        },
-        body: TabBarView(
-          controller: _tabController,
-          children: [_buildRecipesTab(), _buildAboutTab(), _buildReviewsTab()],
+          ),
         ),
       ),
     );

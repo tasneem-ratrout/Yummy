@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import '/../../models/recipe_details_model.dart';
@@ -189,6 +190,13 @@ class _RecipeCardsSectionState extends State<RecipeCardsSection> {
       'ingredients': recipe.ingredients,
       'cookingSteps': recipe.cookingSteps,
     };
+  }
+
+  int _webColumns(double width) {
+    if (width >= 1400) return 4;
+    if (width >= 1050) return 3;
+    if (width >= 720) return 2;
+    return 1;
   }
 
   @override
@@ -584,174 +592,46 @@ class _RecipeCardsSectionState extends State<RecipeCardsSection> {
                     ),
                   ],
                 )
-              : ListView.separated(
-                  physics: const AlwaysScrollableScrollPhysics(),
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 16,
-                    vertical: 10,
-                  ),
-                  itemCount: filteredRecipes.length,
-                  separatorBuilder: (_, __) => const SizedBox(height: 20),
-                  itemBuilder: (context, index) {
-                    final recipe = filteredRecipes[index];
-                    final isFavorite = FavoriteService.isFavoriteRecipe(
-                      recipe.id,
-                    );
-
-                    return GestureDetector(
-                      onTap: () {
-                        Navigator.push(
-                          context,
-
-                          MaterialPageRoute(
-                            builder: (context) =>
-                                RecipeDetailsPage(recipe: recipe),
-                          ),
-                        );
-                      },
-
-                      child: Container(
-                        height: 340,
-
-                        decoration: BoxDecoration(
-                          borderRadius: BorderRadius.circular(32),
-
-                          boxShadow: [
-                            BoxShadow(
-                              color: const Color(0xff1B3C73).withOpacity(0.14),
-
-                              blurRadius: 22,
-
-                              offset: const Offset(0, 12),
-                            ),
-                          ],
+              : LayoutBuilder(
+                  builder: (context, constraints) {
+                    if (!kIsWeb) {
+                      return ListView.separated(
+                        physics: const AlwaysScrollableScrollPhysics(),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 10,
                         ),
+                        itemCount: filteredRecipes.length,
+                        separatorBuilder: (_, __) => const SizedBox(height: 20),
+                        itemBuilder: (context, index) {
+                          final recipe = filteredRecipes[index];
+                          return _buildRecipeCard(recipe, height: 340);
+                        },
+                      );
+                    }
 
-                        child: ClipRRect(
-                          borderRadius: BorderRadius.circular(32),
-
-                          child: Stack(
-                            children: [
-                              Positioned.fill(
-                                child: Image.network(
-                                  recipe.image,
-                                  fit: BoxFit.cover,
-                                ),
+                    final columns = _webColumns(constraints.maxWidth);
+                    return Center(
+                      child: ConstrainedBox(
+                        constraints: const BoxConstraints(maxWidth: 1280),
+                        child: GridView.builder(
+                          physics: const AlwaysScrollableScrollPhysics(),
+                          padding: const EdgeInsets.fromLTRB(32, 24, 32, 120),
+                          itemCount: filteredRecipes.length,
+                          gridDelegate:
+                              SliverGridDelegateWithFixedCrossAxisCount(
+                                crossAxisCount: columns,
+                                crossAxisSpacing: 24,
+                                mainAxisSpacing: 24,
+                                childAspectRatio: 0.86,
                               ),
-
-                              Positioned.fill(
-                                child: Container(
-                                  decoration: BoxDecoration(
-                                    gradient: LinearGradient(
-                                      begin: Alignment.topCenter,
-
-                                      end: Alignment.bottomCenter,
-
-                                      colors: [
-                                        Colors.black.withOpacity(0.10),
-
-                                        Colors.black.withOpacity(0.25),
-
-                                        Colors.black.withOpacity(0.70),
-                                      ],
-                                    ),
-                                  ),
-                                ),
-                              ),
-
-                              Positioned(
-                                left: 20,
-
-                                right: 20,
-
-                                bottom: 20,
-
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-
-                                  children: [
-                                    Text(
-                                      recipe.title,
-
-                                      maxLines: 2,
-
-                                      overflow: TextOverflow.ellipsis,
-
-                                      style: const TextStyle(
-                                        color: Colors.white,
-
-                                        fontSize: 24,
-
-                                        fontWeight: FontWeight.w900,
-
-                                        height: 1.2,
-                                      ),
-                                    ),
-
-                                    const SizedBox(height: 16),
-
-                                    Wrap(
-                                      spacing: 10,
-
-                                      runSpacing: 10,
-
-                                      children: [
-                                        _buildChip(recipe.cuisine),
-
-                                        _buildChip(recipe.dietType),
-                                      ],
-                                    ),
-                                  ],
-                                ),
-                              ),
-                              Positioned(
-                                top: 16,
-                                right: 16,
-                                child: ValueListenableBuilder<Set<String>>(
-                                  valueListenable:
-                                      FavoriteService.favoriteRecipesNotifier,
-                                  builder: (context, favoritesSet, _) {
-                                    final localIsFav = favoritesSet.contains(
-                                      recipe.id,
-                                    );
-
-                                    return Material(
-                                      color: Colors.white.withOpacity(0.95),
-                                      shape: const CircleBorder(),
-                                      child: InkWell(
-                                        customBorder: const CircleBorder(),
-                                        onTap: () async {
-                                          // optimistic toggle: UI updates immediately via notifier
-                                          await FavoriteService.toggleRecipe(
-                                            _recipeToFavoriteMap(recipe),
-                                          );
-                                        },
-                                        child: Padding(
-                                          padding: const EdgeInsets.all(10),
-                                          child: AnimatedSwitcher(
-                                            duration: const Duration(
-                                              milliseconds: 180,
-                                            ),
-                                            child: Icon(
-                                              localIsFav
-                                                  ? Icons.favorite_rounded
-                                                  : Icons
-                                                        .favorite_border_rounded,
-                                              key: ValueKey(localIsFav),
-                                              color: localIsFav
-                                                  ? const Color(0xffE53935)
-                                                  : const Color(0xff1B3C73),
-                                              size: 22,
-                                            ),
-                                          ),
-                                        ),
-                                      ),
-                                    );
-                                  },
-                                ),
-                              ),
-                            ],
-                          ),
+                          itemBuilder: (context, index) {
+                            final recipe = filteredRecipes[index];
+                            return _buildRecipeCard(
+                              recipe,
+                              height: double.infinity,
+                            );
+                          },
                         ),
                       ),
                     );
@@ -759,6 +639,126 @@ class _RecipeCardsSectionState extends State<RecipeCardsSection> {
                 ),
         );
       },
+    );
+  }
+
+  Widget _buildRecipeCard(RecipeDetailsModel recipe, {required double height}) {
+    return GestureDetector(
+      onTap: () {
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => RecipeDetailsPage(recipe: recipe),
+          ),
+        );
+      },
+      child: Container(
+        height: height.isFinite ? height : null,
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(32),
+          boxShadow: [
+            BoxShadow(
+              color: const Color(0xff1B3C73).withOpacity(0.14),
+              blurRadius: 22,
+              offset: const Offset(0, 12),
+            ),
+          ],
+        ),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(32),
+          child: Stack(
+            children: [
+              Positioned.fill(
+                child: Image.network(recipe.image, fit: BoxFit.cover),
+              ),
+              Positioned.fill(
+                child: Container(
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.topCenter,
+                      end: Alignment.bottomCenter,
+                      colors: [
+                        Colors.black.withOpacity(0.10),
+                        Colors.black.withOpacity(0.25),
+                        Colors.black.withOpacity(0.70),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+              Positioned(
+                left: 20,
+                right: 20,
+                bottom: 20,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      recipe.title,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 24,
+                        fontWeight: FontWeight.w900,
+                        height: 1.2,
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    Wrap(
+                      spacing: 10,
+                      runSpacing: 10,
+                      children: [
+                        _buildChip(recipe.cuisine),
+                        _buildChip(recipe.dietType),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+              Positioned(
+                top: 16,
+                right: 16,
+                child: ValueListenableBuilder<Set<String>>(
+                  valueListenable: FavoriteService.favoriteRecipesNotifier,
+                  builder: (context, favoritesSet, _) {
+                    final localIsFav = favoritesSet.contains(recipe.id);
+
+                    return Material(
+                      color: Colors.white.withOpacity(0.95),
+                      shape: const CircleBorder(),
+                      child: InkWell(
+                        customBorder: const CircleBorder(),
+                        onTap: () async {
+                          await FavoriteService.toggleRecipe(
+                            _recipeToFavoriteMap(recipe),
+                          );
+                        },
+                        child: Padding(
+                          padding: const EdgeInsets.all(10),
+                          child: AnimatedSwitcher(
+                            duration: const Duration(milliseconds: 180),
+                            child: Icon(
+                              localIsFav
+                                  ? Icons.favorite_rounded
+                                  : Icons.favorite_border_rounded,
+                              key: ValueKey(localIsFav),
+                              color: localIsFav
+                                  ? const Color(0xffE53935)
+                                  : const Color(0xff1B3C73),
+                              size: 22,
+                            ),
+                          ),
+                        ),
+                      ),
+                    );
+                  },
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 

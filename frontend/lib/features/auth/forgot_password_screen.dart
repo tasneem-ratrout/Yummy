@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'dart:async';
 import 'package:flutter/services.dart';
@@ -272,6 +273,10 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
     return "Create a new password for\nyour account.";
   }
 
+  bool _isWebLayout(BuildContext context) {
+    return kIsWeb && MediaQuery.of(context).size.width >= 900;
+  }
+
   @override
   Widget build(BuildContext context) {
     final h = MediaQuery.of(context).size.height;
@@ -279,194 +284,227 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
     return Scaffold(
       body: AppBackground(
         child: SafeArea(
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.symmetric(horizontal: 22),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                SizedBox(height: h * 0.03),
-                Row(
-                  children: [
-                    AppBackButton(
-                      onTap: () {
-                        if (_step == 0) {
-                          Navigator.pop(context);
-                        } else {
-                          setState(() {
-                            _errorMessage = null;
-                            _loading = false;
-                            _step--;
-                          });
-                        }
-                      },
-                    ),
-                  ],
+          child: Center(
+            child: ConstrainedBox(
+              constraints: BoxConstraints(
+                maxWidth: _isWebLayout(context) ? 470 : double.infinity,
+              ),
+              child: SingleChildScrollView(
+                padding: EdgeInsets.symmetric(
+                  horizontal: _isWebLayout(context) ? 0 : 22,
+                  vertical: _isWebLayout(context) ? 28 : 0,
                 ),
-                const SizedBox(height: 18),
-                Text(
-                  _title(),
-                  textAlign: TextAlign.center,
-                  style: const TextStyle(
-                    fontSize: 24,
-                    fontWeight: FontWeight.w900,
-                    color: AppColors.darkBlue,
-                  ),
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  _subtitle(),
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    fontSize: 14,
-                    height: 1.35,
-                    fontWeight: FontWeight.w600,
-                    color: AppColors.dark.withOpacity(0.60),
-                  ),
-                ),
-                const SizedBox(height: 22),
-                if (_errorMessage != null)
-                  Container(
-                    margin: const EdgeInsets.only(bottom: 14),
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 14,
-                      vertical: 12,
-                    ),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFFFE8E8),
-                      borderRadius: BorderRadius.circular(16),
-                      border: Border.all(color: const Color(0xFFFFB3B3)),
-                    ),
-                    child: Row(
-                      children: [
-                        const Icon(
-                          Icons.error_outline_rounded,
-                          color: Color(0xFFD93025),
-                          size: 18,
-                        ),
-                        const SizedBox(width: 10),
-                        Expanded(
-                          child: Text(
-                            _errorMessage!,
-                            style: const TextStyle(
-                              color: Color(0xFFD93025),
-                              fontSize: 13.5,
-                              fontWeight: FontWeight.w700,
-                            ),
+                child: Container(
+                  padding: EdgeInsets.all(_isWebLayout(context) ? 28 : 0),
+                  decoration: _isWebLayout(context)
+                      ? BoxDecoration(
+                          color: Colors.white.withOpacity(0.72),
+                          borderRadius: BorderRadius.circular(30),
+                          border: Border.all(
+                            color: Colors.white.withOpacity(0.55),
                           ),
-                        ),
-                      ],
-                    ),
-                  ),
-                AnimatedSwitcher(
-                  duration: const Duration(milliseconds: 300),
-                  child: _step == 0
-                      ? _EmailStep(
-                          key: const ValueKey("email"),
-                          emailCtrl: _emailCtrl,
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withOpacity(0.08),
+                              blurRadius: 30,
+                              offset: const Offset(0, 12),
+                            ),
+                          ],
                         )
-                      : _step == 1
-                      ? _CodeStep(
-                          key: const ValueKey("code"),
-                          codeCtrls: _codeCtrls,
-                          onCodeCompleted: _verifyCode,
-                        )
-                      : _ResetStep(
-                          key: const ValueKey("reset"),
-                          newPassCtrl: _newPassCtrl,
-                          confirmPassCtrl: _confirmPassCtrl,
-                          obscureNew: _obscureNew,
-                          obscureConfirm: _obscureConfirm,
-                          onToggleNew: () {
-                            setState(() => _obscureNew = !_obscureNew);
-                          },
-                          onToggleConfirm: () {
-                            setState(() => _obscureConfirm = !_obscureConfirm);
-                          },
-                        ),
-                ),
-                const SizedBox(height: 16),
-                SizedBox(
-                  width: double.infinity,
-                  height: 52,
-                  child: ElevatedButton(
-                    onPressed: _loading
-                        ? null
-                        : _step == 0
-                        ? _sendCode
-                        : _step == 1
-                        ? _verifyCode
-                        : _resetPassword,
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: AppColors.navy,
-                      disabledBackgroundColor: AppColors.navy,
-                      disabledForegroundColor: Colors.white,
-                      elevation: 0,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(16),
+                      : null,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      SizedBox(height: h * 0.03),
+                      Row(
+                        children: [
+                          AppBackButton(
+                            onTap: () {
+                              if (_step == 0) {
+                                Navigator.pop(context);
+                              } else {
+                                setState(() {
+                                  _errorMessage = null;
+                                  _loading = false;
+                                  _step--;
+                                });
+                              }
+                            },
+                          ),
+                        ],
                       ),
-                    ),
-                    child: _loading
-                        ? const SizedBox(
-                            width: 22,
-                            height: 22,
-                            child: CircularProgressIndicator(
-                              strokeWidth: 2.4,
-                              valueColor: AlwaysStoppedAnimation<Color>(
-                                Colors.white,
+                      const SizedBox(height: 18),
+                      Text(
+                        _title(),
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(
+                          fontSize: 24,
+                          fontWeight: FontWeight.w900,
+                          color: AppColors.darkBlue,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        _subtitle(),
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          fontSize: 14,
+                          height: 1.35,
+                          fontWeight: FontWeight.w600,
+                          color: AppColors.dark.withOpacity(0.60),
+                        ),
+                      ),
+                      const SizedBox(height: 22),
+                      if (_errorMessage != null)
+                        Container(
+                          margin: const EdgeInsets.only(bottom: 14),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 14,
+                            vertical: 12,
+                          ),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFFFE8E8),
+                            borderRadius: BorderRadius.circular(16),
+                            border: Border.all(color: const Color(0xFFFFB3B3)),
+                          ),
+                          child: Row(
+                            children: [
+                              const Icon(
+                                Icons.error_outline_rounded,
+                                color: Color(0xFFD93025),
+                                size: 18,
                               ),
-                            ),
-                          )
-                        : Text(
-                            _step == 0
-                                ? "Send Code"
-                                : _step == 1
-                                ? "Verify"
-                                : "Reset Password",
-                            style: const TextStyle(
-                              fontSize: 15,
-                              fontWeight: FontWeight.w900,
-                              color: Colors.white,
+                              const SizedBox(width: 10),
+                              Expanded(
+                                child: Text(
+                                  _errorMessage!,
+                                  style: const TextStyle(
+                                    color: Color(0xFFD93025),
+                                    fontSize: 13.5,
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      AnimatedSwitcher(
+                        duration: const Duration(milliseconds: 300),
+                        child: _step == 0
+                            ? _EmailStep(
+                                key: const ValueKey("email"),
+                                emailCtrl: _emailCtrl,
+                              )
+                            : _step == 1
+                            ? _CodeStep(
+                                key: const ValueKey("code"),
+                                codeCtrls: _codeCtrls,
+                                onCodeCompleted: _verifyCode,
+                              )
+                            : _ResetStep(
+                                key: const ValueKey("reset"),
+                                newPassCtrl: _newPassCtrl,
+                                confirmPassCtrl: _confirmPassCtrl,
+                                obscureNew: _obscureNew,
+                                obscureConfirm: _obscureConfirm,
+                                onToggleNew: () {
+                                  setState(() => _obscureNew = !_obscureNew);
+                                },
+                                onToggleConfirm: () {
+                                  setState(
+                                    () => _obscureConfirm = !_obscureConfirm,
+                                  );
+                                },
+                              ),
+                      ),
+                      const SizedBox(height: 16),
+                      SizedBox(
+                        width: double.infinity,
+                        height: 52,
+                        child: ElevatedButton(
+                          onPressed: _loading
+                              ? null
+                              : _step == 0
+                              ? _sendCode
+                              : _step == 1
+                              ? _verifyCode
+                              : _resetPassword,
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: AppColors.navy,
+                            disabledBackgroundColor: AppColors.navy,
+                            disabledForegroundColor: Colors.white,
+                            elevation: 0,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(16),
                             ),
                           ),
-                  ),
-                ),
-                const SizedBox(height: 12),
-                if (_step == 1)
-                  _resendCountdown > 0
-                      ? Container(
-                          padding: const EdgeInsets.symmetric(vertical: 12),
+                          child: _loading
+                              ? const SizedBox(
+                                  width: 22,
+                                  height: 22,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2.4,
+                                    valueColor: AlwaysStoppedAnimation<Color>(
+                                      Colors.white,
+                                    ),
+                                  ),
+                                )
+                              : Text(
+                                  _step == 0
+                                      ? "Send Code"
+                                      : _step == 1
+                                      ? "Verify"
+                                      : "Reset Password",
+                                  style: const TextStyle(
+                                    fontSize: 15,
+                                    fontWeight: FontWeight.w900,
+                                    color: Colors.white,
+                                  ),
+                                ),
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      if (_step == 1)
+                        _resendCountdown > 0
+                            ? Container(
+                                padding: const EdgeInsets.symmetric(
+                                  vertical: 12,
+                                ),
+                                child: Text(
+                                  "Resend code in $_resendCountdown seconds",
+                                  style: TextStyle(
+                                    color: AppColors.navy.withOpacity(0.6),
+                                    fontWeight: FontWeight.w700,
+                                    fontSize: 14,
+                                  ),
+                                ),
+                              )
+                            : TextButton(
+                                onPressed: _resendCode,
+                                child: Text(
+                                  "Resend Code",
+                                  style: TextStyle(
+                                    color: AppColors.navy,
+                                    fontWeight: FontWeight.w900,
+                                  ),
+                                ),
+                              ),
+                      if (_step == 0)
+                        TextButton(
+                          onPressed: () => Navigator.pop(context),
                           child: Text(
-                            "Resend code in $_resendCountdown seconds",
-                            style: TextStyle(
-                              color: AppColors.navy.withOpacity(0.6),
-                              fontWeight: FontWeight.w700,
-                              fontSize: 14,
-                            ),
-                          ),
-                        )
-                      : TextButton(
-                          onPressed: _resendCode,
-                          child: Text(
-                            "Resend Code",
+                            "Back to login",
                             style: TextStyle(
                               color: AppColors.navy,
                               fontWeight: FontWeight.w900,
                             ),
                           ),
                         ),
-                if (_step == 0)
-                  TextButton(
-                    onPressed: () => Navigator.pop(context),
-                    child: Text(
-                      "Back to login",
-                      style: TextStyle(
-                        color: AppColors.navy,
-                        fontWeight: FontWeight.w900,
-                      ),
-                    ),
+                      const SizedBox(height: 200),
+                    ],
                   ),
-                const SizedBox(height: 200),
-              ],
+                ),
+              ),
             ),
           ),
         ),

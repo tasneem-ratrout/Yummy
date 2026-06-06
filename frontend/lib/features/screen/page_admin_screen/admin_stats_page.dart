@@ -364,28 +364,7 @@ class _AdminStatsPageState extends State<AdminStatsPage>
                   child: child,
                 ),
               ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text(
-                    'Dashboard Overview',
-                    style: TextStyle(
-                      fontSize: 22,
-                      fontWeight: FontWeight.w800,
-                      color: AppColors.deepBlue,
-                      letterSpacing: -0.5,
-                    ),
-                  ),
-                  const SizedBox(height: 6),
-                  Text(
-                    'Welcome back, Admin!',
-                    style: TextStyle(
-                      fontSize: 13,
-                      color: AppColors.blueGray.withOpacity(0.8),
-                    ),
-                  ),
-                ],
-              ),
+              child: Column(crossAxisAlignment: CrossAxisAlignment.start),
             ),
 
             const SizedBox(height: 24),

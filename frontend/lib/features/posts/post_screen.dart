@@ -279,6 +279,10 @@ class _PostScreenState extends State<PostScreen> with WidgetsBindingObserver {
   /// Rebuild the open composer bottom sheet (`StatefulBuilder`). Parent `setState` alone does not refresh it.
   StateSetter? _composerModalSetState;
 
+  bool _isWebLayout(BuildContext context) {
+    return kIsWeb && MediaQuery.of(context).size.width >= 900;
+  }
+
   @override
   void initState() {
     super.initState();
@@ -507,7 +511,12 @@ class _PostScreenState extends State<PostScreen> with WidgetsBindingObserver {
     final matchedUsers = _matchedUsers;
 
     return Padding(
-      padding: const EdgeInsets.fromLTRB(14, 12, 8, 10),
+      padding: EdgeInsets.fromLTRB(
+        _isWebLayout(context) ? 22 : 14,
+        12,
+        _isWebLayout(context) ? 22 : 8,
+        10,
+      ),
       child: Column(
         children: [
           LayoutBuilder(
@@ -1649,7 +1658,7 @@ class _PostScreenState extends State<PostScreen> with WidgetsBindingObserver {
                       ),
                       const SizedBox(height: 10),
                       SizedBox(
-                        height: 220,
+                        height: _isWebLayout(context) ? 320 : 220,
                         child: post.comments.isEmpty
                             ? const Center(
                                 child: Text(
@@ -2135,7 +2144,12 @@ class _PostScreenState extends State<PostScreen> with WidgetsBindingObserver {
     return GestureDetector(
       onTap: _showComposerSheet,
       child: Container(
-        margin: const EdgeInsets.fromLTRB(14, 6, 14, 12),
+        margin: EdgeInsets.fromLTRB(
+          _isWebLayout(context) ? 0 : 14,
+          6,
+          _isWebLayout(context) ? 0 : 14,
+          12,
+        ),
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
         decoration: BoxDecoration(
           color: AppColors.babyBlueLight,
@@ -2254,7 +2268,12 @@ class _PostScreenState extends State<PostScreen> with WidgetsBindingObserver {
       onTap: null,
       borderRadius: BorderRadius.circular(16),
       child: Container(
-        margin: const EdgeInsets.fromLTRB(14, 0, 14, 12),
+        margin: EdgeInsets.fromLTRB(
+          _isWebLayout(context) ? 0 : 14,
+          0,
+          _isWebLayout(context) ? 0 : 14,
+          14,
+        ),
         decoration: BoxDecoration(
           color: AppColors.white,
           borderRadius: BorderRadius.circular(16),
@@ -2348,7 +2367,7 @@ class _PostScreenState extends State<PostScreen> with WidgetsBindingObserver {
                 child: Image.file(
                   post.imageFile!,
                   width: double.infinity,
-                  height: 220,
+                  height: _isWebLayout(context) ? 320 : 220,
                   fit: BoxFit.cover,
                 ),
               )
@@ -2358,7 +2377,7 @@ class _PostScreenState extends State<PostScreen> with WidgetsBindingObserver {
                 child: Image.network(
                   post.imageUrl!,
                   width: double.infinity,
-                  height: 220,
+                  height: _isWebLayout(context) ? 320 : 220,
                   fit: BoxFit.cover,
                 ),
               ),
@@ -3048,47 +3067,32 @@ class _PostScreenState extends State<PostScreen> with WidgetsBindingObserver {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
+    return CustomResponsiveNavShell(
+      currentIndex: 4,
       backgroundColor: AppColors.background,
+      onAddWaterTap: (amount) {
+        try {
+          Provider.of<HomeProvider>(context, listen: false).addWaterBy(amount);
+        } catch (_) {}
+      },
       endDrawer: Drawer(
         backgroundColor: Colors.white,
         child: _buildFilterSidebar(closeAfterSelect: true),
       ),
-      body: Stack(
-        children: [
-          SafeArea(
-            child: LayoutBuilder(
-              builder: (context, constraints) {
-                if (constraints.maxWidth >= 700) {
-                  return Row(
-                    children: [
-                      Container(
-                        width: 260,
-                        color: Colors.white,
-                        child: _buildFilterSidebar(),
-                      ),
-                      const VerticalDivider(width: 1, color: Color(0xFFEDEEF0)),
-                      Expanded(child: _buildFeedScroll()),
-                    ],
-                  );
-                }
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final isWeb = _isWebLayout(context);
 
-                // For narrow screens: show feed only
-                return _buildFeedScroll();
-              },
-            ),
-          ),
-        ],
-      ),
-      bottomNavigationBar: CustomBottomNav(
-        currentIndex: 4,
-        onAddWaterTap: (amount) {
-          try {
-            Provider.of<HomeProvider>(
-              context,
-              listen: false,
-            ).addWaterBy(amount);
-          } catch (_) {}
+          if (isWeb) {
+            return Center(
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 900),
+                child: _buildFeedScroll(),
+              ),
+            );
+          }
+
+          return _buildFeedScroll();
         },
       ),
     );

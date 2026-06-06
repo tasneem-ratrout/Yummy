@@ -1,10 +1,10 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../../../core/services/chef_socket_service.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
-import 'dart:convert';
 import '../../../../core/config/app_config.dart';
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -135,7 +135,9 @@ class OrderItem {
 // 🏠 MAIN ORDERS SCREEN
 // ═══════════════════════════════════════════════════════════════════════════
 class ChefOrdersScreen extends StatefulWidget {
-  const ChefOrdersScreen({super.key});
+  final bool showBackButton;
+
+  const ChefOrdersScreen({super.key, this.showBackButton = false});
 
   @override
   State<ChefOrdersScreen> createState() => _ChefOrdersScreenState();
@@ -301,6 +303,10 @@ class _ChefOrdersScreenState extends State<ChefOrdersScreen>
     return _allOrders.where((order) => order.status == status).length;
   }
 
+  bool _isWebLayout(BuildContext context) {
+    return kIsWeb && MediaQuery.of(context).size.width >= 900;
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -311,22 +317,35 @@ class _ChefOrdersScreenState extends State<ChefOrdersScreen>
           statusBarIconBrightness: Brightness.light,
         ),
         child: SafeArea(
-          child: Column(
-            children: [
-              _buildAppBar(),
-              _buildModernTabs(),
-              Expanded(
-                child: _isLoading
-                    ? _buildLoadingShimmer()
-                    : _filteredOrders.isEmpty
-                    ? _buildEmptyState()
-                    : _buildOrdersList(),
+          child: Center(
+            child: ConstrainedBox(
+              constraints: BoxConstraints(
+                maxWidth: _isWebLayout(context) ? 1320 : double.infinity,
               ),
-            ],
+              child: Column(
+                children: [
+                  _buildAppBar(),
+                  _buildModernTabs(),
+                  Expanded(
+                    child: _isLoading
+                        ? _buildLoadingShimmer()
+                        : _filteredOrders.isEmpty
+                        ? _buildEmptyState()
+                        : _buildOrdersList(),
+                  ),
+                ],
+              ),
+            ),
           ),
         ),
       ),
     );
+  }
+
+  void _goBack() {
+    if (Navigator.of(context).canPop()) {
+      Navigator.of(context).pop();
+    }
   }
 
   // ═══════════════════════════════════════════════════════════════════════════
@@ -345,6 +364,24 @@ class _ChefOrdersScreenState extends State<ChefOrdersScreen>
         padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
         child: Row(
           children: [
+            if (widget.showBackButton && Navigator.of(context).canPop()) ...[
+              Container(
+                decoration: BoxDecoration(
+                  color: Colors.white.withOpacity(0.15),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: IconButton(
+                  tooltip: 'Back',
+                  icon: const Icon(
+                    Icons.arrow_back_rounded,
+                    color: Colors.white,
+                    size: 22,
+                  ),
+                  onPressed: _goBack,
+                ),
+              ),
+              const SizedBox(width: 10),
+            ],
             Container(
               padding: const EdgeInsets.all(10),
               decoration: BoxDecoration(

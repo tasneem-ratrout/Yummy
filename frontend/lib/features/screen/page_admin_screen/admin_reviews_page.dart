@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
@@ -371,149 +372,207 @@ class _AdminReviewsPageState extends State<AdminReviewsPage>
     return filtered;
   }
 
+  bool _isWebLayout(BuildContext context) {
+    return kIsWeb && MediaQuery.of(context).size.width >= 900;
+  }
+
   @override
   Widget build(BuildContext context) {
     final filtered = _filteredReviews;
     final pendingCount = _reviews.where((r) => r['status'] == 'pending').length;
+    final isWebLayout = _isWebLayout(context);
 
     return Scaffold(
       backgroundColor: Colors.transparent,
       body: RefreshIndicator(
         onRefresh: _loadReviews,
         color: AppColors.royalBlue,
-        child: CustomScrollView(
-          physics: const BouncingScrollPhysics(),
-          slivers: [
-            // Stats Cards
-            SliverToBoxAdapter(
-              child: Padding(
-                padding: const EdgeInsets.all(16),
-                child: Row(
-                  children: [
-                    _buildStatCard(
-                      'Total Reviews',
-                      '${_reviews.length}',
-                      Icons.star_rounded,
-                      Colors.amber,
-                    ),
-                    const SizedBox(width: 12),
-                    _buildStatCard(
-                      'Average Rating',
-                      _averageRating.toStringAsFixed(1),
-                      Icons.star_half_rounded,
-                      Colors.orange,
-                    ),
-                  ],
-                ),
-              ),
+        child: Center(
+          child: ConstrainedBox(
+            constraints: BoxConstraints(
+              maxWidth: isWebLayout ? 1320 : double.infinity,
             ),
-
-            // Pending Alert
-            if (pendingCount > 0)
-              SliverToBoxAdapter(
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16),
-                  child: Container(
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: Colors.orange.withOpacity(0.1),
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: Colors.orange.withOpacity(0.3)),
+            child: CustomScrollView(
+              physics: const BouncingScrollPhysics(),
+              slivers: [
+                // Stats Cards
+                SliverToBoxAdapter(
+                  child: Padding(
+                    padding: EdgeInsets.fromLTRB(
+                      isWebLayout ? 28 : 16,
+                      isWebLayout ? 24 : 16,
+                      isWebLayout ? 28 : 16,
+                      16,
                     ),
                     child: Row(
                       children: [
-                        const Icon(Icons.pending_actions, color: Colors.orange),
+                        _buildStatCard(
+                          'Total Reviews',
+                          '${_reviews.length}',
+                          Icons.star_rounded,
+                          Colors.amber,
+                        ),
                         const SizedBox(width: 12),
-                        Expanded(
-                          child: Text(
-                            '$pendingCount review${pendingCount > 1 ? 's' : ''} pending approval',
-                            style: const TextStyle(
-                              fontWeight: FontWeight.w500,
-                              color: Colors.orange,
-                            ),
-                          ),
+                        _buildStatCard(
+                          'Average Rating',
+                          _averageRating.toStringAsFixed(1),
+                          Icons.star_half_rounded,
+                          Colors.orange,
                         ),
                       ],
                     ),
                   ),
                 ),
-              ),
 
-            // Filters
-            SliverToBoxAdapter(
-              child: Padding(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 16,
-                  vertical: 12,
-                ),
-                child: Column(
-                  children: [
-                    // Status Filter
-                    SingleChildScrollView(
-                      scrollDirection: Axis.horizontal,
-                      child: Row(
-                        children: [
-                          _buildStatusChip('All', 'all'),
-                          const SizedBox(width: 8),
-                          _buildStatusChip('Pending', 'pending'),
-                          const SizedBox(width: 8),
-                          _buildStatusChip('Approved', 'approved'),
-                          const SizedBox(width: 8),
-                          _buildStatusChip('Rejected', 'rejected'),
-                        ],
+                // Pending Alert
+                if (pendingCount > 0)
+                  SliverToBoxAdapter(
+                    child: Padding(
+                      padding: EdgeInsets.symmetric(
+                        horizontal: isWebLayout ? 28 : 16,
                       ),
-                    ),
-                    const SizedBox(height: 12),
-
-                    // Search Field
-                    TextField(
-                      onChanged: (v) => setState(() => _searchQuery = v),
-                      decoration: InputDecoration(
-                        hintText: 'Search by user, chef, or comment...',
-                        prefixIcon: const Icon(
-                          Icons.search_rounded,
-                          color: AppColors.blueGray,
-                        ),
-                        suffixIcon: _searchQuery.isNotEmpty
-                            ? IconButton(
-                                icon: const Icon(
-                                  Icons.clear,
-                                  color: AppColors.blueGray,
-                                ),
-                                onPressed: () =>
-                                    setState(() => _searchQuery = ''),
-                              )
-                            : null,
-                        filled: true,
-                        fillColor: AppColors.white,
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(14),
-                          borderSide: BorderSide.none,
-                        ),
-                        focusedBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(14),
-                          borderSide: const BorderSide(
-                            color: AppColors.royalBlue,
-                            width: 1.5,
+                      child: Container(
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: Colors.orange.withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(
+                            color: Colors.orange.withOpacity(0.3),
                           ),
                         ),
-                        contentPadding: const EdgeInsets.symmetric(
-                          horizontal: 16,
-                          vertical: 13,
+                        child: Row(
+                          children: [
+                            const Icon(
+                              Icons.pending_actions,
+                              color: Colors.orange,
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Text(
+                                '$pendingCount review${pendingCount > 1 ? 's' : ''} pending approval',
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.w500,
+                                  color: Colors.orange,
+                                ),
+                              ),
+                            ),
+                          ],
                         ),
                       ),
                     ),
-                  ],
-                ),
-              ),
-            ),
+                  ),
 
-            // Reviews List
-            SliverPadding(
-              padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
-              sliver: _buildReviewsList(filtered),
+                // Filters
+                SliverToBoxAdapter(
+                  child: Padding(
+                    padding: EdgeInsets.symmetric(
+                      horizontal: isWebLayout ? 28 : 16,
+                      vertical: 12,
+                    ),
+                    child: isWebLayout
+                        ? Row(
+                            crossAxisAlignment: CrossAxisAlignment.center,
+                            children: [
+                              Expanded(flex: 5, child: _buildSearchField()),
+                              const SizedBox(width: 18),
+                              Expanded(
+                                flex: 4,
+                                child: Align(
+                                  alignment: Alignment.centerRight,
+                                  child: SingleChildScrollView(
+                                    scrollDirection: Axis.horizontal,
+                                    reverse: true,
+                                    child: Row(
+                                      children: [
+                                        _buildStatusChip('All', 'all'),
+                                        const SizedBox(width: 8),
+                                        _buildStatusChip('Pending', 'pending'),
+                                        const SizedBox(width: 8),
+                                        _buildStatusChip(
+                                          'Approved',
+                                          'approved',
+                                        ),
+                                        const SizedBox(width: 8),
+                                        _buildStatusChip(
+                                          'Rejected',
+                                          'rejected',
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          )
+                        : Column(
+                            children: [
+                              // Status Filter
+                              SingleChildScrollView(
+                                scrollDirection: Axis.horizontal,
+                                child: Row(
+                                  children: [
+                                    _buildStatusChip('All', 'all'),
+                                    const SizedBox(width: 8),
+                                    _buildStatusChip('Pending', 'pending'),
+                                    const SizedBox(width: 8),
+                                    _buildStatusChip('Approved', 'approved'),
+                                    const SizedBox(width: 8),
+                                    _buildStatusChip('Rejected', 'rejected'),
+                                  ],
+                                ),
+                              ),
+                              const SizedBox(height: 12),
+
+                              // Search Field
+                              _buildSearchField(),
+                            ],
+                          ),
+                  ),
+                ),
+
+                // Reviews List
+                SliverPadding(
+                  padding: EdgeInsets.fromLTRB(
+                    isWebLayout ? 28 : 16,
+                    isWebLayout ? 18 : 16,
+                    isWebLayout ? 28 : 16,
+                    32,
+                  ),
+                  sliver: _buildReviewsList(filtered, isWebLayout: isWebLayout),
+                ),
+              ],
             ),
-          ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSearchField() {
+    return TextField(
+      onChanged: (v) => setState(() => _searchQuery = v),
+      decoration: InputDecoration(
+        hintText: 'Search by user, chef, or comment...',
+        prefixIcon: const Icon(Icons.search_rounded, color: AppColors.blueGray),
+        suffixIcon: _searchQuery.isNotEmpty
+            ? IconButton(
+                icon: const Icon(Icons.clear, color: AppColors.blueGray),
+                onPressed: () => setState(() => _searchQuery = ''),
+              )
+            : null,
+        filled: true,
+        fillColor: AppColors.white,
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(16),
+          borderSide: BorderSide.none,
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(16),
+          borderSide: const BorderSide(color: AppColors.royalBlue, width: 1.5),
+        ),
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: 18,
+          vertical: 15,
         ),
       ),
     );
@@ -594,7 +653,7 @@ class _AdminReviewsPageState extends State<AdminReviewsPage>
     );
   }
 
-  Widget _buildReviewsList(List<dynamic> reviews) {
+  Widget _buildReviewsList(List<dynamic> reviews, {required bool isWebLayout}) {
     if (_loading) {
       return const SliverFillRemaining(
         child: Center(
@@ -696,303 +755,319 @@ class _AdminReviewsPageState extends State<AdminReviewsPage>
       );
     }
 
-    return SliverList(
-      delegate: SliverChildBuilderDelegate((context, index) {
-        final startTime = (index * 0.08).clamp(0.0, 0.7);
-        final endTime = (startTime + 0.4).clamp(0.0, 1.0);
-        final anim = CurvedAnimation(
-          parent: _listController,
-          curve: Interval(startTime, endTime, curve: Curves.easeOutCubic),
-        );
+    Widget itemBuilder(BuildContext context, int index) {
+      final startTime = (index * 0.08).clamp(0.0, 0.7);
+      final endTime = (startTime + 0.4).clamp(0.0, 1.0);
+      final anim = CurvedAnimation(
+        parent: _listController,
+        curve: Interval(startTime, endTime, curve: Curves.easeOutCubic),
+      );
 
-        final review = reviews[index];
-        final isPending = review['status'] == 'pending';
+      final review = reviews[index];
+      final isPending = review['status'] == 'pending';
 
-        // ✅ جلب اسم الشيف من البيانات (الـ API الآن ترسله مباشرة)
-        final chefName = review['chefName'] ?? 'Unknown Chef';
+      // ✅ جلب اسم الشيف من البيانات (الـ API الآن ترسله مباشرة)
+      final chefName = review['chefName'] ?? 'Unknown Chef';
 
-        return FadeTransition(
-          opacity: anim,
-          child: SlideTransition(
-            position: Tween<Offset>(
-              begin: const Offset(0.1, 0),
-              end: Offset.zero,
-            ).animate(anim),
-            child: Container(
-              margin: const EdgeInsets.only(bottom: 12),
-              decoration: BoxDecoration(
-                color: AppColors.white,
-                borderRadius: BorderRadius.circular(18),
-                boxShadow: [
-                  BoxShadow(
-                    color: AppColors.navy.withOpacity(0.06),
-                    blurRadius: 14,
-                    offset: const Offset(0, 4),
-                  ),
-                ],
-                border: isPending
-                    ? Border.all(color: Colors.orange.withOpacity(0.5))
-                    : null,
-              ),
-              child: Padding(
-                padding: const EdgeInsets.all(16),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // ✅ Chef Name - اسم الشيف (يظهر الآن بشكل صحيح)
-                    Container(
-                      margin: const EdgeInsets.only(bottom: 12),
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 10,
-                        vertical: 6,
-                      ),
-                      decoration: BoxDecoration(
-                        color: AppColors.royalBlue.withOpacity(0.1),
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          const Icon(
-                            Icons.restaurant,
-                            size: 14,
-                            color: AppColors.royalBlue,
-                          ),
-                          const SizedBox(width: 6),
-                          Text(
-                            chefName,
-                            style: const TextStyle(
-                              fontSize: 12,
-                              fontWeight: FontWeight.w600,
-                              color: AppColors.royalBlue,
-                            ),
-                          ),
-                        ],
-                      ),
+      return FadeTransition(
+        opacity: anim,
+        child: SlideTransition(
+          position: Tween<Offset>(
+            begin: const Offset(0.1, 0),
+            end: Offset.zero,
+          ).animate(anim),
+          child: Container(
+            margin: const EdgeInsets.only(bottom: 12),
+            decoration: BoxDecoration(
+              color: AppColors.white,
+              borderRadius: BorderRadius.circular(18),
+              boxShadow: [
+                BoxShadow(
+                  color: AppColors.navy.withOpacity(0.06),
+                  blurRadius: 14,
+                  offset: const Offset(0, 4),
+                ),
+              ],
+              border: isPending
+                  ? Border.all(color: Colors.orange.withOpacity(0.5))
+                  : null,
+            ),
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // ✅ Chef Name - اسم الشيف (يظهر الآن بشكل صحيح)
+                  Container(
+                    margin: const EdgeInsets.only(bottom: 12),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 6,
                     ),
-
-                    // User Info Row
-                    Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
+                    decoration: BoxDecoration(
+                      color: AppColors.royalBlue.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
                       children: [
-                        CircleAvatar(
-                          radius: 22,
-                          backgroundColor: AppColors.babyBlueLight,
-                          child: Text(
-                            ((review['userName'] ?? '').toString().isNotEmpty
-                                    ? review['userName'][0]
-                                    : 'U')
-                                .toUpperCase(),
-                            style: const TextStyle(
-                              fontSize: 18,
-                              fontWeight: FontWeight.bold,
-                              color: AppColors.royalBlue,
-                            ),
-                          ),
+                        const Icon(
+                          Icons.restaurant,
+                          size: 14,
+                          color: AppColors.royalBlue,
                         ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Row(
-                                children: [
-                                  Flexible(
-                                    child: Text(
-                                      review['userName'] ?? 'Anonymous',
-                                      style: const TextStyle(
-                                        fontSize: 14,
-                                        fontWeight: FontWeight.w700,
-                                        color: AppColors.deepBlue,
-                                      ),
-                                      overflow: TextOverflow.ellipsis,
-                                    ),
-                                  ),
-                                  const SizedBox(width: 8),
-                                  Container(
-                                    padding: const EdgeInsets.symmetric(
-                                      horizontal: 8,
-                                      vertical: 2,
-                                    ),
-                                    decoration: BoxDecoration(
-                                      color: _getStatusColor(
-                                        review['status'],
-                                      ).withOpacity(0.1),
-                                      borderRadius: BorderRadius.circular(10),
-                                    ),
-                                    child: Text(
-                                      _getStatusText(review['status']),
-                                      style: TextStyle(
-                                        fontSize: 10,
-                                        fontWeight: FontWeight.w600,
-                                        color: _getStatusColor(
-                                          review['status'],
-                                        ),
-                                      ),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                              const SizedBox(height: 2),
-                              Text(
-                                _formatDate(review['createdAt']),
-                                style: const TextStyle(
-                                  fontSize: 11,
-                                  color: AppColors.blueGray,
-                                ),
-                              ),
-                            ],
+                        const SizedBox(width: 6),
+                        Text(
+                          chefName,
+                          style: const TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                            color: AppColors.royalBlue,
                           ),
                         ),
                       ],
                     ),
-                    const SizedBox(height: 12),
+                  ),
 
-                    // Rating Stars
+                  // User Info Row
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      CircleAvatar(
+                        radius: 22,
+                        backgroundColor: AppColors.babyBlueLight,
+                        child: Text(
+                          ((review['userName'] ?? '').toString().isNotEmpty
+                                  ? review['userName'][0]
+                                  : 'U')
+                              .toUpperCase(),
+                          style: const TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                            color: AppColors.royalBlue,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              children: [
+                                Flexible(
+                                  child: Text(
+                                    review['userName'] ?? 'Anonymous',
+                                    style: const TextStyle(
+                                      fontSize: 14,
+                                      fontWeight: FontWeight.w700,
+                                      color: AppColors.deepBlue,
+                                    ),
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ),
+                                const SizedBox(width: 8),
+                                Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 8,
+                                    vertical: 2,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: _getStatusColor(
+                                      review['status'],
+                                    ).withOpacity(0.1),
+                                    borderRadius: BorderRadius.circular(10),
+                                  ),
+                                  child: Text(
+                                    _getStatusText(review['status']),
+                                    style: TextStyle(
+                                      fontSize: 10,
+                                      fontWeight: FontWeight.w600,
+                                      color: _getStatusColor(review['status']),
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 2),
+                            Text(
+                              _formatDate(review['createdAt']),
+                              style: const TextStyle(
+                                fontSize: 11,
+                                color: AppColors.blueGray,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+
+                  // Rating Stars
+                  Row(
+                    children: List.generate(5, (starIndex) {
+                      return Icon(
+                        starIndex <
+                                (double.tryParse(review['rating'].toString()) ??
+                                    0)
+                            ? Icons.star_rounded
+                            : Icons.star_border_rounded,
+                        size: 18,
+                        color: Colors.amber,
+                      );
+                    }),
+                  ),
+                  const SizedBox(height: 10),
+
+                  // Comment
+                  Text(
+                    review['comment'] ?? 'No comment',
+                    style: const TextStyle(
+                      fontSize: 13,
+                      color: AppColors.blueGray,
+                      height: 1.4,
+                    ),
+                  ),
+
+                  const SizedBox(height: 12),
+
+                  // Action Buttons
+                  if (isPending)
                     Row(
-                      children: List.generate(5, (starIndex) {
-                        return Icon(
-                          starIndex <
-                                  (double.tryParse(
-                                        review['rating'].toString(),
-                                      ) ??
-                                      0)
-                              ? Icons.star_rounded
-                              : Icons.star_border_rounded,
-                          size: 18,
-                          color: Colors.amber,
-                        );
-                      }),
-                    ),
-                    const SizedBox(height: 10),
-
-                    // Comment
-                    Text(
-                      review['comment'] ?? 'No comment',
-                      style: const TextStyle(
-                        fontSize: 13,
-                        color: AppColors.blueGray,
-                        height: 1.4,
-                      ),
-                    ),
-
-                    const SizedBox(height: 12),
-
-                    // Action Buttons
-                    if (isPending)
-                      Row(
-                        children: [
-                          _TapScaleWidget(
-                            onTap: () => _approveReview(review['_id']),
-                            child: Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 16,
-                                vertical: 8,
-                              ),
-                              decoration: BoxDecoration(
-                                color: Colors.green,
-                                borderRadius: BorderRadius.circular(10),
-                              ),
-                              child: const Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  Icon(
-                                    Icons.check_rounded,
+                      children: [
+                        _TapScaleWidget(
+                          onTap: () => _approveReview(review['_id']),
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 16,
+                              vertical: 8,
+                            ),
+                            decoration: BoxDecoration(
+                              color: Colors.green,
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            child: const Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(
+                                  Icons.check_rounded,
+                                  color: Colors.white,
+                                  size: 16,
+                                ),
+                                SizedBox(width: 4),
+                                Text(
+                                  'Approve',
+                                  style: TextStyle(
                                     color: Colors.white,
-                                    size: 16,
+                                    fontWeight: FontWeight.w600,
+                                    fontSize: 12,
                                   ),
-                                  SizedBox(width: 4),
-                                  Text(
-                                    'Approve',
-                                    style: TextStyle(
-                                      color: Colors.white,
-                                      fontWeight: FontWeight.w600,
-                                      fontSize: 12,
-                                    ),
-                                  ),
-                                ],
-                              ),
+                                ),
+                              ],
                             ),
                           ),
-                          const SizedBox(width: 12),
-                          _TapScaleWidget(
-                            onTap: () => _rejectReview(review['_id']),
-                            child: Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 16,
-                                vertical: 8,
-                              ),
-                              decoration: BoxDecoration(
-                                color: AppColors.red,
-                                borderRadius: BorderRadius.circular(10),
-                              ),
-                              child: const Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  Icon(
-                                    Icons.close_rounded,
+                        ),
+                        const SizedBox(width: 12),
+                        _TapScaleWidget(
+                          onTap: () => _rejectReview(review['_id']),
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 16,
+                              vertical: 8,
+                            ),
+                            decoration: BoxDecoration(
+                              color: AppColors.red,
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            child: const Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(
+                                  Icons.close_rounded,
+                                  color: Colors.white,
+                                  size: 16,
+                                ),
+                                SizedBox(width: 4),
+                                Text(
+                                  'Reject',
+                                  style: TextStyle(
                                     color: Colors.white,
-                                    size: 16,
+                                    fontWeight: FontWeight.w600,
+                                    fontSize: 12,
                                   ),
-                                  SizedBox(width: 4),
-                                  Text(
-                                    'Reject',
-                                    style: TextStyle(
-                                      color: Colors.white,
-                                      fontWeight: FontWeight.w600,
-                                      fontSize: 12,
-                                    ),
-                                  ),
-                                ],
-                              ),
+                                ),
+                              ],
                             ),
                           ),
-                          const Spacer(),
-                          _TapScaleWidget(
-                            onTap: () => _deleteReview(review['_id']),
-                            child: Container(
-                              padding: const EdgeInsets.all(8),
-                              decoration: BoxDecoration(
-                                color: AppColors.red.withOpacity(0.1),
-                                borderRadius: BorderRadius.circular(10),
-                              ),
-                              child: const Icon(
-                                Icons.delete_outline_rounded,
-                                color: AppColors.red,
-                                size: 20,
-                              ),
+                        ),
+                        const Spacer(),
+                        _TapScaleWidget(
+                          onTap: () => _deleteReview(review['_id']),
+                          child: Container(
+                            padding: const EdgeInsets.all(8),
+                            decoration: BoxDecoration(
+                              color: AppColors.red.withOpacity(0.1),
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            child: const Icon(
+                              Icons.delete_outline_rounded,
+                              color: AppColors.red,
+                              size: 20,
                             ),
                           ),
-                        ],
-                      )
-                    else
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.end,
-                        children: [
-                          _TapScaleWidget(
-                            onTap: () => _deleteReview(review['_id']),
-                            child: Container(
-                              padding: const EdgeInsets.all(8),
-                              decoration: BoxDecoration(
-                                color: AppColors.red.withOpacity(0.1),
-                                borderRadius: BorderRadius.circular(10),
-                              ),
-                              child: const Icon(
-                                Icons.delete_outline_rounded,
-                                color: AppColors.red,
-                                size: 20,
-                              ),
+                        ),
+                      ],
+                    )
+                  else
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.end,
+                      children: [
+                        _TapScaleWidget(
+                          onTap: () => _deleteReview(review['_id']),
+                          child: Container(
+                            padding: const EdgeInsets.all(8),
+                            decoration: BoxDecoration(
+                              color: AppColors.red.withOpacity(0.1),
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            child: const Icon(
+                              Icons.delete_outline_rounded,
+                              color: AppColors.red,
+                              size: 20,
                             ),
                           ),
-                        ],
-                      ),
-                  ],
-                ),
+                        ),
+                      ],
+                    ),
+                ],
               ),
             ),
           ),
-        );
-      }, childCount: reviews.length),
+        ),
+      );
+    }
+
+    if (isWebLayout) {
+      return SliverGrid(
+        delegate: SliverChildBuilderDelegate(
+          itemBuilder,
+          childCount: reviews.length,
+        ),
+        gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
+          maxCrossAxisExtent: 430,
+          mainAxisExtent: 310,
+          crossAxisSpacing: 18,
+          mainAxisSpacing: 18,
+        ),
+      );
+    }
+
+    return SliverList(
+      delegate: SliverChildBuilderDelegate(
+        itemBuilder,
+        childCount: reviews.length,
+      ),
     );
   }
 }

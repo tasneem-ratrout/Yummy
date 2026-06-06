@@ -1,10 +1,31 @@
 // 📁 lib/features/review/add_review_screen.dart
 import 'dart:convert';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../../core/config/app_config.dart';
 import '../../../core/theme/app_colors.dart';
+
+Widget _webResponsiveBody(
+  BuildContext context, {
+  required Widget child,
+  double maxWidth = 1180,
+  EdgeInsetsGeometry? webPadding,
+}) {
+  final isWeb = kIsWeb && MediaQuery.of(context).size.width >= 900;
+  if (!isWeb) return child;
+
+  return Center(
+    child: ConstrainedBox(
+      constraints: BoxConstraints(maxWidth: maxWidth),
+      child: Padding(
+        padding: webPadding ?? const EdgeInsets.symmetric(horizontal: 24),
+        child: child,
+      ),
+    ),
+  );
+}
 
 class AddReviewScreen extends StatefulWidget {
   final String chefId;
@@ -124,153 +145,158 @@ class _AddReviewScreenState extends State<AddReviewScreen> {
         ),
         centerTitle: true,
       ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          children: [
-            // Chef info
-            Container(
-              padding: const EdgeInsets.all(20),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(20),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withOpacity(0.05),
-                    blurRadius: 10,
-                  ),
-                ],
-              ),
-              child: Column(
-                children: [
-                  const Icon(
-                    Icons.star_rate_rounded,
-                    size: 60,
-                    color: Colors.amber,
-                  ),
-                  const SizedBox(height: 10),
-                  Text(
-                    'Rate your experience with',
-                    style: const TextStyle(color: AppColors.blueGray),
-                  ),
-                  const SizedBox(height: 5),
-                  Text(
-                    widget.chefName,
-                    style: const TextStyle(
-                      fontSize: 20,
-                      fontWeight: FontWeight.bold,
-                      color: AppColors.deepBlue,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 24),
-
-            // Rating stars
-            const Text(
-              'How would you rate?',
-              style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
-            ),
-            const SizedBox(height: 12),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: List.generate(5, (index) {
-                return GestureDetector(
-                  onTap: () => setState(() => _rating = index + 1.0),
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 6),
-                    child: Icon(
-                      index < _rating ? Icons.star : Icons.star_border,
-                      size: 40,
-                      color: Colors.amber,
-                    ),
-                  ),
-                );
-              }),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              _rating > 0 ? '${_rating.toInt()} stars' : 'Tap to rate',
-              style: const TextStyle(color: AppColors.blueGray),
-            ),
-            const SizedBox(height: 24),
-
-            // Comment field
-            const Text(
-              'Write your review',
-              style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
-            ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: _commentController,
-              maxLines: 5,
-              maxLength: 500,
-              decoration: InputDecoration(
-                hintText: 'Share your experience with this chef...',
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(16),
-                  borderSide: const BorderSide(color: AppColors.softBlue),
-                ),
-                focusedBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(16),
-                  borderSide: const BorderSide(
-                    color: AppColors.royalBlue,
-                    width: 2,
-                  ),
-                ),
-              ),
-            ),
-            const SizedBox(height: 16),
-
-            // Error message
-            if (_errorMessage != null)
+      body: _webResponsiveBody(
+        context,
+        maxWidth: 720,
+        webPadding: const EdgeInsets.symmetric(horizontal: 24),
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            children: [
+              // Chef info
               Container(
-                padding: const EdgeInsets.all(12),
+                padding: const EdgeInsets.all(20),
                 decoration: BoxDecoration(
-                  color: Colors.red.withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(12),
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(20),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.05),
+                      blurRadius: 10,
+                    ),
+                  ],
                 ),
-                child: Row(
+                child: Column(
                   children: [
                     const Icon(
-                      Icons.error_outline,
-                      color: Colors.red,
-                      size: 20,
+                      Icons.star_rate_rounded,
+                      size: 60,
+                      color: Colors.amber,
                     ),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: Text(
-                        _errorMessage!,
-                        style: const TextStyle(color: Colors.red),
+                    const SizedBox(height: 10),
+                    Text(
+                      'Rate your experience with',
+                      style: const TextStyle(color: AppColors.blueGray),
+                    ),
+                    const SizedBox(height: 5),
+                    Text(
+                      widget.chefName,
+                      style: const TextStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.bold,
+                        color: AppColors.deepBlue,
                       ),
                     ),
                   ],
                 ),
               ),
-            const SizedBox(height: 24),
+              const SizedBox(height: 24),
 
-            // Submit button
-            SizedBox(
-              width: double.infinity,
-              height: 50,
-              child: ElevatedButton(
-                onPressed: _isSubmitting ? null : _submitReview,
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AppColors.royalBlue,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(30),
+              // Rating stars
+              const Text(
+                'How would you rate?',
+                style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+              ),
+              const SizedBox(height: 12),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: List.generate(5, (index) {
+                  return GestureDetector(
+                    onTap: () => setState(() => _rating = index + 1.0),
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 6),
+                      child: Icon(
+                        index < _rating ? Icons.star : Icons.star_border,
+                        size: 40,
+                        color: Colors.amber,
+                      ),
+                    ),
+                  );
+                }),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                _rating > 0 ? '${_rating.toInt()} stars' : 'Tap to rate',
+                style: const TextStyle(color: AppColors.blueGray),
+              ),
+              const SizedBox(height: 24),
+
+              // Comment field
+              const Text(
+                'Write your review',
+                style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: _commentController,
+                maxLines: 5,
+                maxLength: 500,
+                decoration: InputDecoration(
+                  hintText: 'Share your experience with this chef...',
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(16),
+                    borderSide: const BorderSide(color: AppColors.softBlue),
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(16),
+                    borderSide: const BorderSide(
+                      color: AppColors.royalBlue,
+                      width: 2,
+                    ),
                   ),
                 ),
-                child: _isSubmitting
-                    ? const CircularProgressIndicator(color: Colors.white)
-                    : const Text(
-                        'Submit Review',
-                        style: TextStyle(fontSize: 16),
-                      ),
               ),
-            ),
-          ],
+              const SizedBox(height: 16),
+
+              // Error message
+              if (_errorMessage != null)
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Colors.red.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Row(
+                    children: [
+                      const Icon(
+                        Icons.error_outline,
+                        color: Colors.red,
+                        size: 20,
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Text(
+                          _errorMessage!,
+                          style: const TextStyle(color: Colors.red),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              const SizedBox(height: 24),
+
+              // Submit button
+              SizedBox(
+                width: double.infinity,
+                height: 50,
+                child: ElevatedButton(
+                  onPressed: _isSubmitting ? null : _submitReview,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.royalBlue,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(30),
+                    ),
+                  ),
+                  child: _isSubmitting
+                      ? const CircularProgressIndicator(color: Colors.white)
+                      : const Text(
+                          'Submit Review',
+                          style: TextStyle(fontSize: 16),
+                        ),
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );

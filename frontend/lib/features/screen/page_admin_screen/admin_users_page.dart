@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
@@ -663,6 +664,10 @@ class _AdminUsersPageState extends State<AdminUsersPage>
     }
   }
 
+  bool _isWebLayout(BuildContext context) {
+    return kIsWeb && MediaQuery.of(context).size.width >= 900;
+  }
+
   @override
   Widget build(BuildContext context) {
     final filteredByRole = _selectedRoleFilter == 'all'
@@ -680,11 +685,15 @@ class _AdminUsersPageState extends State<AdminUsersPage>
     final activeUsers = _users.where((u) => !(u['isBanned'] ?? false)).length;
     final bannedUsers = _users.where((u) => u['isBanned'] ?? false).length;
 
+    final isWebLayout = _isWebLayout(context);
+
     if (_error.isNotEmpty) {
       return Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
+
           children: [
+            const SizedBox(height: 16),
             TweenAnimationBuilder<double>(
               tween: Tween(begin: 0, end: 1),
               duration: const Duration(milliseconds: 500),
@@ -755,224 +764,244 @@ class _AdminUsersPageState extends State<AdminUsersPage>
           child: const Icon(Icons.add, color: Colors.white),
         ),
       ),
-      body: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Animated Header
-            FadeTransition(
-              opacity: _headerController,
-              child: SlideTransition(
-                position:
-                    Tween<Offset>(
-                      begin: const Offset(0, -0.3),
-                      end: Offset.zero,
-                    ).animate(
-                      CurvedAnimation(
-                        parent: _headerController,
-                        curve: Curves.easeOutCubic,
+      body: Center(
+        child: ConstrainedBox(
+          constraints: BoxConstraints(
+            maxWidth: isWebLayout ? 1450 : double.infinity,
+          ),
+          child: Padding(
+            padding: EdgeInsets.symmetric(
+              horizontal: isWebLayout ? 40 : 16,
+              vertical: isWebLayout ? 20 : 16,
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Animated Header
+                const SizedBox(height: 8),
+
+                // Stats Cards
+                // Stats Cards
+                isWebLayout
+                    ? Row(
+                        children: [
+                          Expanded(
+                            child: _buildStatCard(
+                              'Total',
+                              totalUsers.toString(),
+                              Colors.blue,
+                              expanded: false,
+                            ),
+                          ),
+                          const SizedBox(width: 14),
+                          Expanded(
+                            child: _buildStatCard(
+                              'Active',
+                              activeUsers.toString(),
+                              Colors.green,
+                              expanded: false,
+                            ),
+                          ),
+                          const SizedBox(width: 14),
+                          Expanded(
+                            child: _buildStatCard(
+                              'Banned',
+                              bannedUsers.toString(),
+                              Colors.red,
+                              expanded: false,
+                            ),
+                          ),
+                        ],
+                      )
+                    : Row(
+                        children: [
+                          _buildStatCard(
+                            'Total',
+                            totalUsers.toString(),
+                            Colors.blue,
+                          ),
+                          const SizedBox(width: 8),
+                          _buildStatCard(
+                            'Active',
+                            activeUsers.toString(),
+                            Colors.green,
+                          ),
+                          const SizedBox(width: 8),
+                          _buildStatCard(
+                            'Banned',
+                            bannedUsers.toString(),
+                            Colors.red,
+                          ),
+                        ],
                       ),
-                    ),
-                child: Row(
+                const SizedBox(height: 16),
+
+                // Search Row
+                Row(
                   children: [
-                    const Text(
-                      'Users Management',
-                      style: TextStyle(
-                        fontSize: 20,
-                        fontWeight: FontWeight.w800,
-                        color: AppColors.deepBlue,
-                        letterSpacing: -0.5,
+                    Expanded(
+                      child: TextField(
+                        onChanged: (v) => setState(() => _search = v),
+                        decoration: InputDecoration(
+                          hintText: 'Search by name or email...',
+                          hintStyle: TextStyle(
+                            color: AppColors.blueGray.withOpacity(0.6),
+                          ),
+                          prefixIcon: const Icon(
+                            Icons.search_rounded,
+                            color: AppColors.blueGray,
+                          ),
+                          suffixIcon: _search.isNotEmpty
+                              ? IconButton(
+                                  icon: const Icon(
+                                    Icons.clear,
+                                    color: AppColors.blueGray,
+                                  ),
+                                  onPressed: () => setState(() => _search = ''),
+                                )
+                              : null,
+                          filled: true,
+                          fillColor: AppColors.white,
+                          focusedBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(14),
+                            borderSide: const BorderSide(
+                              color: AppColors.royalBlue,
+                              width: 1.5,
+                            ),
+                          ),
+                          enabledBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(14),
+                            borderSide: BorderSide.none,
+                          ),
+                          contentPadding: const EdgeInsets.symmetric(
+                            horizontal: 16,
+                            vertical: 13,
+                          ),
+                        ),
                       ),
                     ),
-                    const Spacer(),
-                    AnimatedSwitcher(
-                      duration: const Duration(milliseconds: 300),
-                      child: Container(
-                        key: ValueKey(_users.length),
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 12,
-                          vertical: 6,
+                    const SizedBox(width: 8),
+                    Container(
+                      decoration: BoxDecoration(
+                        color: AppColors.white,
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                      child: PopupMenuButton<String>(
+                        icon: const Icon(
+                          Icons.filter_list_rounded,
+                          color: AppColors.royalBlue,
                         ),
-                        decoration: BoxDecoration(
-                          gradient: const LinearGradient(
-                            colors: [
-                              AppColors.babyBlueLight,
-                              AppColors.babyBlue,
-                            ],
+                        onSelected: (value) =>
+                            setState(() => _selectedRoleFilter = value),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(14),
+                        ),
+                        itemBuilder: (_) => [
+                          const PopupMenuItem(value: 'all', child: Text('All')),
+                          const PopupMenuItem(
+                            value: 'user',
+                            child: Text('Users'),
                           ),
-                          borderRadius: BorderRadius.circular(20),
-                        ),
-                        child: Text(
-                          '${_users.length} users',
-                          style: const TextStyle(
-                            fontSize: 12,
-                            color: AppColors.royalBlue,
-                            fontWeight: FontWeight.w700,
+                          const PopupMenuItem(
+                            value: 'chef',
+                            child: Text('Chefs'),
                           ),
-                        ),
+                          const PopupMenuItem(
+                            value: 'admin',
+                            child: Text('Admins'),
+                          ),
+                        ],
                       ),
                     ),
                   ],
                 ),
-              ),
-            ),
-            const SizedBox(height: 16),
+                const SizedBox(height: 12),
 
-            // Stats Cards
-            Row(
-              children: [
-                _buildStatCard('Total', totalUsers.toString(), Colors.blue),
-                const SizedBox(width: 8),
-                _buildStatCard('Active', activeUsers.toString(), Colors.green),
-                const SizedBox(width: 8),
-                _buildStatCard('Banned', bannedUsers.toString(), Colors.red),
-              ],
-            ),
-            const SizedBox(height: 16),
-
-            // Search Row
-            Row(
-              children: [
-                Expanded(
-                  child: TextField(
-                    onChanged: (v) => setState(() => _search = v),
-                    decoration: InputDecoration(
-                      hintText: 'Search by name or email...',
-                      hintStyle: TextStyle(
-                        color: AppColors.blueGray.withOpacity(0.6),
-                      ),
-                      prefixIcon: const Icon(
-                        Icons.search_rounded,
-                        color: AppColors.blueGray,
-                      ),
-                      suffixIcon: _search.isNotEmpty
-                          ? IconButton(
-                              icon: const Icon(
-                                Icons.clear,
-                                color: AppColors.blueGray,
-                              ),
-                              onPressed: () => setState(() => _search = ''),
-                            )
-                          : null,
-                      filled: true,
-                      fillColor: AppColors.white,
-                      focusedBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(14),
-                        borderSide: const BorderSide(
-                          color: AppColors.royalBlue,
-                          width: 1.5,
-                        ),
-                      ),
-                      enabledBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(14),
-                        borderSide: BorderSide.none,
-                      ),
-                      contentPadding: const EdgeInsets.symmetric(
-                        horizontal: 16,
-                        vertical: 13,
-                      ),
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Container(
-                  decoration: BoxDecoration(
-                    color: AppColors.white,
-                    borderRadius: BorderRadius.circular(14),
-                  ),
-                  child: PopupMenuButton<String>(
-                    icon: const Icon(
-                      Icons.filter_list_rounded,
-                      color: AppColors.royalBlue,
-                    ),
-                    onSelected: (value) =>
-                        setState(() => _selectedRoleFilter = value),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(14),
-                    ),
-                    itemBuilder: (_) => [
-                      const PopupMenuItem(value: 'all', child: Text('All')),
-                      const PopupMenuItem(value: 'user', child: Text('Users')),
-                      const PopupMenuItem(value: 'chef', child: Text('Chefs')),
-                      const PopupMenuItem(
-                        value: 'admin',
-                        child: Text('Admins'),
-                      ),
+                // Role Filter Chips
+                SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  child: Row(
+                    children: [
+                      _buildFilterChip('All', 'all'),
+                      const SizedBox(width: 8),
+                      _buildFilterChip('Users', 'user'),
+                      const SizedBox(width: 8),
+                      _buildFilterChip('Chefs', 'chef'),
+                      const SizedBox(width: 8),
+                      _buildFilterChip('Admins', 'admin'),
                     ],
                   ),
                 ),
+                const SizedBox(height: 16),
+
+                // Users List
+                Expanded(
+                  child: _loading
+                      ? ListView.builder(
+                          itemCount: 5,
+                          itemBuilder: (_, i) => _buildShimmerCard(i),
+                        )
+                      : filtered.isEmpty
+                      ? _buildEmpty()
+                      : _buildUsersList(filtered, isWebLayout: isWebLayout),
+                ),
               ],
             ),
-            const SizedBox(height: 12),
-
-            // Role Filter Chips
-            SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
-              child: Row(
-                children: [
-                  _buildFilterChip('All', 'all'),
-                  const SizedBox(width: 8),
-                  _buildFilterChip('Users', 'user'),
-                  const SizedBox(width: 8),
-                  _buildFilterChip('Chefs', 'chef'),
-                  const SizedBox(width: 8),
-                  _buildFilterChip('Admins', 'admin'),
-                ],
-              ),
-            ),
-            const SizedBox(height: 16),
-
-            // Users List
-            Expanded(
-              child: _loading
-                  ? ListView.builder(
-                      itemCount: 5,
-                      itemBuilder: (_, i) => _buildShimmerCard(i),
-                    )
-                  : filtered.isEmpty
-                  ? _buildEmpty()
-                  : _buildUsersList(filtered),
-            ),
-          ],
+          ),
         ),
       ),
     );
   }
 
-  Widget _buildUsersList(List filtered) {
+  Widget _buildUsersList(List filtered, {required bool isWebLayout}) {
+    Widget animatedItem(BuildContext context, int i) {
+      final startTime = (i * 0.08).clamp(0.0, 0.7);
+      final endTime = (startTime + 0.4).clamp(0.0, 1.0);
+      final anim = CurvedAnimation(
+        parent: _listController,
+        curve: Interval(startTime, endTime, curve: Curves.easeOutCubic),
+      );
+
+      final user = filtered[i];
+
+      return FadeTransition(
+        opacity: anim,
+        child: SlideTransition(
+          position: Tween<Offset>(
+            begin: const Offset(0.1, 0),
+            end: Offset.zero,
+          ).animate(anim),
+          child: _buildUserCard(user, isWebLayout: isWebLayout),
+        ),
+      );
+    }
+
     return AnimatedBuilder(
       animation: _listController,
       builder: (context, child) {
+        if (isWebLayout) {
+          return GridView.builder(
+            padding: EdgeInsets.zero,
+            itemCount: filtered.length,
+            gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
+              maxCrossAxisExtent: 560,
+              mainAxisExtent: 132,
+              crossAxisSpacing: 16,
+              mainAxisSpacing: 16,
+            ),
+            itemBuilder: animatedItem,
+          );
+        }
+
         return ListView.builder(
           itemCount: filtered.length,
-          itemBuilder: (context, i) {
-            final startTime = (i * 0.08).clamp(0.0, 0.7);
-            final endTime = (startTime + 0.4).clamp(0.0, 1.0);
-            final anim = CurvedAnimation(
-              parent: _listController,
-              curve: Interval(startTime, endTime, curve: Curves.easeOutCubic),
-            );
-
-            final user = filtered[i];
-
-            return FadeTransition(
-              opacity: anim,
-              child: SlideTransition(
-                position: Tween<Offset>(
-                  begin: const Offset(0.1, 0),
-                  end: Offset.zero,
-                ).animate(anim),
-                child: _buildUserCard(user),
-              ),
-            );
-          },
+          itemBuilder: animatedItem,
         );
       },
     );
   }
 
-  Widget _buildUserCard(Map<String, dynamic> user) {
+  Widget _buildUserCard(Map<String, dynamic> user, {bool isWebLayout = false}) {
     final isBanned = user['isBanned'] ?? false;
     final role = user['role'] ?? 'user';
     final profileImage = user['profileImage'];
@@ -1035,21 +1064,24 @@ class _AdminUsersPageState extends State<AdminUsersPage>
         );
       },
       onDismissed: (_) => _deleteUser(user['_id']),
-      child: GestureDetector(
+      child: InkWell(
+        borderRadius: BorderRadius.circular(18),
         onTap: () => _showUserDetails(user),
+        hoverColor: Colors.blue.withOpacity(0.03),
         child: Container(
-          margin: const EdgeInsets.only(bottom: 12),
-          padding: const EdgeInsets.all(14),
+          margin: EdgeInsets.only(bottom: isWebLayout ? 0 : 12),
+          padding: EdgeInsets.all(isWebLayout ? 16 : 14),
           decoration: BoxDecoration(
             color: AppColors.white,
             borderRadius: BorderRadius.circular(18),
             boxShadow: [
               BoxShadow(
-                color: AppColors.navy.withOpacity(0.06),
-                blurRadius: 14,
-                offset: const Offset(0, 4),
+                color: Colors.black.withOpacity(0.05),
+                blurRadius: 20,
+                offset: const Offset(0, 8),
               ),
             ],
+            border: Border.all(color: Colors.grey.shade100),
           ),
           child: Row(
             children: [
@@ -1196,39 +1228,44 @@ class _AdminUsersPageState extends State<AdminUsersPage>
     );
   }
 
-  Widget _buildStatCard(String label, String value, Color color) {
-    return Expanded(
-      child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 12),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(14),
-          boxShadow: [
-            BoxShadow(
-              color: color.withOpacity(0.1),
-              blurRadius: 12,
-              offset: const Offset(0, 4),
+  Widget _buildStatCard(
+    String label,
+    String value,
+    Color color, {
+    bool expanded = true,
+  }) {
+    final card = Container(
+      padding: const EdgeInsets.symmetric(vertical: 12),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(14),
+        boxShadow: [
+          BoxShadow(
+            color: color.withOpacity(0.1),
+            blurRadius: 12,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        children: [
+          Text(
+            value,
+            style: TextStyle(
+              fontSize: 20,
+              fontWeight: FontWeight.bold,
+              color: color,
             ),
-          ],
-        ),
-        child: Column(
-          children: [
-            Text(
-              value,
-              style: TextStyle(
-                fontSize: 20,
-                fontWeight: FontWeight.bold,
-                color: color,
-              ),
-            ),
-            Text(
-              label,
-              style: const TextStyle(fontSize: 11, color: AppColors.blueGray),
-            ),
-          ],
-        ),
+          ),
+          Text(
+            label,
+            style: const TextStyle(fontSize: 11, color: AppColors.blueGray),
+          ),
+        ],
       ),
     );
+
+    return expanded ? Expanded(child: card) : card;
   }
 
   Widget _buildShimmerCard(int i) {

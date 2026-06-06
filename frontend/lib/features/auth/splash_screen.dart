@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:lottie/lottie.dart';
 import 'package:provider/provider.dart';
@@ -42,22 +43,12 @@ class _SplashScreenState extends State<SplashScreen>
     _fadeAnimation = Tween<double>(
       begin: 0,
       end: 1,
-    ).animate(
-      CurvedAnimation(
-        parent: _controller,
-        curve: Curves.easeIn,
-      ),
-    );
+    ).animate(CurvedAnimation(parent: _controller, curve: Curves.easeIn));
 
     _scaleAnimation = Tween<double>(
       begin: 0.8,
       end: 1,
-    ).animate(
-      CurvedAnimation(
-        parent: _controller,
-        curve: Curves.easeOutBack,
-      ),
-    );
+    ).animate(CurvedAnimation(parent: _controller, curve: Curves.easeOutBack));
 
     _controller.forward();
 
@@ -89,8 +80,7 @@ class _SplashScreenState extends State<SplashScreen>
 
       String? role = prefs.getString('userRole');
 
-      final hasToken =
-          prefs.getString('token')?.trim().isNotEmpty ?? false;
+      final hasToken = prefs.getString('token')?.trim().isNotEmpty ?? false;
 
       if (authProvider.isAuthenticated &&
           (role == null || role.trim().isEmpty)) {
@@ -121,11 +111,13 @@ class _SplashScreenState extends State<SplashScreen>
 
       Navigator.pushReplacement(
         context,
-        MaterialPageRoute(
-          builder: (_) => destination,
-        ),
+        MaterialPageRoute(builder: (_) => destination),
       );
     });
+  }
+
+  bool _isWebLayout(BuildContext context) {
+    return kIsWeb && MediaQuery.of(context).size.width >= 900;
   }
 
   @override
@@ -148,14 +140,12 @@ class _SplashScreenState extends State<SplashScreen>
               children: [
                 Image.asset(
                   AppBrandingService.currentLogo,
-                  width: 300,
+                  width: _isWebLayout(context) ? 360 : 300,
                 ),
                 SizedBox(
-                  width: 310,
-                  height: 110,
-                  child: Lottie.asset(
-                    "assets/lottie/Loading Dots Blue.json",
-                  ),
+                  width: _isWebLayout(context) ? 360 : 310,
+                  height: _isWebLayout(context) ? 120 : 110,
+                  child: Lottie.asset("assets/lottie/Loading Dots Blue.json"),
                 ),
               ],
             ),

@@ -1,13 +1,11 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import '/../../models/recipe_details_model.dart';
 
 class RecipeDetailsPage extends StatefulWidget {
   final RecipeDetailsModel recipe;
 
-  const RecipeDetailsPage({
-    super.key,
-    required this.recipe,
-  });
+  const RecipeDetailsPage({super.key, required this.recipe});
 
   @override
   State<RecipeDetailsPage> createState() => _RecipeDetailsPageState();
@@ -90,7 +88,7 @@ class _RecipeDetailsPageState extends State<RecipeDetailsPage> {
         physics: const BouncingScrollPhysics(),
         slivers: [
           SliverAppBar(
-            expandedHeight: 330,
+            expandedHeight: kIsWeb ? 380 : 330,
             pinned: true,
             stretch: true,
             elevation: 0,
@@ -135,8 +133,8 @@ class _RecipeDetailsPageState extends State<RecipeDetailsPage> {
                   ),
 
                   Positioned(
-                    left: 20,
-                    right: 20,
+                    left: kIsWeb ? 56 : 20,
+                    right: kIsWeb ? 56 : 20,
                     bottom: 24,
                     child: TweenAnimationBuilder<double>(
                       tween: Tween(begin: 0, end: 1),
@@ -158,9 +156,9 @@ class _RecipeDetailsPageState extends State<RecipeDetailsPage> {
                             widget.recipe.title,
                             maxLines: 2,
                             overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(
+                            style: TextStyle(
                               color: Colors.white,
-                              fontSize: 27,
+                              fontSize: kIsWeb ? 34 : 27,
                               fontWeight: FontWeight.w900,
                               height: 1.18,
                               letterSpacing: -0.4,
@@ -193,121 +191,136 @@ class _RecipeDetailsPageState extends State<RecipeDetailsPage> {
           ),
 
           SliverToBoxAdapter(
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(18, 20, 18, 40),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  _AnimatedFadeSlide(
-                    delay: 80,
-                    child: _buildCookingInfoCard(),
+            child: Center(
+              child: ConstrainedBox(
+                constraints: BoxConstraints(
+                  maxWidth: kIsWeb ? 980 : double.infinity,
+                ),
+                child: Padding(
+                  padding: EdgeInsets.fromLTRB(
+                    kIsWeb ? 32 : 18,
+                    kIsWeb ? 30 : 20,
+                    kIsWeb ? 32 : 18,
+                    40,
                   ),
-
-                  const SizedBox(height: 26),
-
-                  _AnimatedFadeSlide(
-                    delay: 130,
-                    child: _buildSectionTitle(
-                      title: "Ingredients",
-                      icon: Icons.shopping_basket_rounded,
-                    ),
-                  ),
-
-                  const SizedBox(height: 14),
-
-                  ...widget.recipe.ingredients.toList().asMap().entries.map(
-                    (entry) {
-                      final index = entry.key;
-                      final ingredient = entry.value;
-
-                      return _AnimatedFadeSlide(
-                        delay: 160 + (index * 35),
-                        child: _buildIngredientCard(ingredient.toString()),
-                      );
-                    },
-                  ),
-
-                  const SizedBox(height: 28),
-
-                  _AnimatedFadeSlide(
-                    delay: 180,
-                    child: _buildSectionTitle(
-                      title: "Cooking Steps",
-                      icon: Icons.format_list_numbered_rounded,
-                    ),
-                  ),
-
-                  const SizedBox(height: 14),
-
-                  ...widget.recipe.cookingSteps
-                      .asMap()
-                      .entries
-                      .where((step) {
-                    final cleanedText = cleanStepText(step.value.toString());
-                    return cleanedText.isNotEmpty;
-                  }).map(
-                    (step) {
-                      final cleanedText = cleanStepText(step.value.toString());
-
-                      return _AnimatedFadeSlide(
-                        delay: 180 + (step.key * 40),
-                        child: _buildStepCard(
-                          number: step.key + 1,
-                          text: cleanedText,
-                        ),
-                      );
-                    },
-                  ),
-
-                  const SizedBox(height: 28),
-
-                  _AnimatedFadeSlide(
-                    delay: 220,
-                    child: _buildSectionTitle(
-                      title: "Nutrition",
-                      icon: Icons.monitor_heart_rounded,
-                    ),
-                  ),
-
-                  const SizedBox(height: 14),
-
-                  _AnimatedFadeSlide(
-                    delay: 260,
-                    child: GridView(
-                      shrinkWrap: true,
-                      physics: const NeverScrollableScrollPhysics(),
-                      gridDelegate:
-                          const SliverGridDelegateWithFixedCrossAxisCount(
-                        crossAxisCount: 2,
-                        crossAxisSpacing: 14,
-                        mainAxisSpacing: 14,
-                        childAspectRatio: 1.25,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      _AnimatedFadeSlide(
+                        delay: 80,
+                        child: _buildCookingInfoCard(),
                       ),
-                      children: [
-                        _buildNutritionCard(
-                          title: "Calories",
-                          value: "${widget.recipe.calories}",
-                          icon: Icons.local_fire_department_rounded,
+
+                      const SizedBox(height: 26),
+
+                      _AnimatedFadeSlide(
+                        delay: 130,
+                        child: _buildSectionTitle(
+                          title: "Ingredients",
+                          icon: Icons.shopping_basket_rounded,
                         ),
-                        _buildNutritionCard(
-                          title: "Protein",
-                          value: "${widget.recipe.protein}g",
-                          icon: Icons.fitness_center_rounded,
+                      ),
+
+                      const SizedBox(height: 14),
+
+                      ...widget.recipe.ingredients.toList().asMap().entries.map(
+                        (entry) {
+                          final index = entry.key;
+                          final ingredient = entry.value;
+
+                          return _AnimatedFadeSlide(
+                            delay: 160 + (index * 35),
+                            child: _buildIngredientCard(ingredient.toString()),
+                          );
+                        },
+                      ),
+
+                      const SizedBox(height: 28),
+
+                      _AnimatedFadeSlide(
+                        delay: 180,
+                        child: _buildSectionTitle(
+                          title: "Cooking Steps",
+                          icon: Icons.format_list_numbered_rounded,
                         ),
-                        _buildNutritionCard(
-                          title: "Carbs",
-                          value: "${widget.recipe.carbs}g",
-                          icon: Icons.rice_bowl_rounded,
+                      ),
+
+                      const SizedBox(height: 14),
+
+                      ...widget.recipe.cookingSteps
+                          .asMap()
+                          .entries
+                          .where((step) {
+                            final cleanedText = cleanStepText(
+                              step.value.toString(),
+                            );
+                            return cleanedText.isNotEmpty;
+                          })
+                          .map((step) {
+                            final cleanedText = cleanStepText(
+                              step.value.toString(),
+                            );
+
+                            return _AnimatedFadeSlide(
+                              delay: 180 + (step.key * 40),
+                              child: _buildStepCard(
+                                number: step.key + 1,
+                                text: cleanedText,
+                              ),
+                            );
+                          }),
+
+                      const SizedBox(height: 28),
+
+                      _AnimatedFadeSlide(
+                        delay: 220,
+                        child: _buildSectionTitle(
+                          title: "Nutrition",
+                          icon: Icons.monitor_heart_rounded,
                         ),
-                        _buildNutritionCard(
-                          title: "Fat",
-                          value: "${widget.recipe.fat}g",
-                          icon: Icons.opacity_rounded,
+                      ),
+
+                      const SizedBox(height: 14),
+
+                      _AnimatedFadeSlide(
+                        delay: 260,
+                        child: GridView(
+                          shrinkWrap: true,
+                          physics: const NeverScrollableScrollPhysics(),
+                          gridDelegate:
+                              SliverGridDelegateWithFixedCrossAxisCount(
+                                crossAxisCount: kIsWeb ? 4 : 2,
+                                crossAxisSpacing: 14,
+                                mainAxisSpacing: 14,
+                                childAspectRatio: kIsWeb ? 1.45 : 1.25,
+                              ),
+                          children: [
+                            _buildNutritionCard(
+                              title: "Calories",
+                              value: "${widget.recipe.calories}",
+                              icon: Icons.local_fire_department_rounded,
+                            ),
+                            _buildNutritionCard(
+                              title: "Protein",
+                              value: "${widget.recipe.protein}g",
+                              icon: Icons.fitness_center_rounded,
+                            ),
+                            _buildNutritionCard(
+                              title: "Carbs",
+                              value: "${widget.recipe.carbs}g",
+                              icon: Icons.rice_bowl_rounded,
+                            ),
+                            _buildNutritionCard(
+                              title: "Fat",
+                              value: "${widget.recipe.fat}g",
+                              icon: Icons.opacity_rounded,
+                            ),
+                          ],
                         ),
-                      ],
-                    ),
+                      ),
+                    ],
                   ),
-                ],
+                ),
               ),
             ),
           ),
@@ -322,9 +335,7 @@ class _RecipeDetailsPageState extends State<RecipeDetailsPage> {
       decoration: BoxDecoration(
         color: Colors.white.withOpacity(0.18),
         borderRadius: BorderRadius.circular(999),
-        border: Border.all(
-          color: Colors.white.withOpacity(0.28),
-        ),
+        border: Border.all(color: Colors.white.withOpacity(0.28)),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
@@ -438,10 +449,7 @@ class _RecipeDetailsPageState extends State<RecipeDetailsPage> {
     );
   }
 
-  Widget _buildSectionTitle({
-    required String title,
-    required IconData icon,
-  }) {
+  Widget _buildSectionTitle({required String title, required IconData icon}) {
     return Row(
       children: [
         Container(
@@ -451,11 +459,7 @@ class _RecipeDetailsPageState extends State<RecipeDetailsPage> {
             color: navy,
             borderRadius: BorderRadius.circular(15),
           ),
-          child: Icon(
-            icon,
-            color: Colors.white,
-            size: 21,
-          ),
+          child: Icon(icon, color: Colors.white, size: 21),
         ),
         const SizedBox(width: 12),
         Text(
@@ -497,11 +501,7 @@ class _RecipeDetailsPageState extends State<RecipeDetailsPage> {
               color: softBlue,
               borderRadius: BorderRadius.circular(12),
             ),
-            child: const Icon(
-              Icons.check_rounded,
-              color: navy,
-              size: 19,
-            ),
+            child: const Icon(Icons.check_rounded, color: navy, size: 19),
           ),
           const SizedBox(width: 12),
           Expanded(
@@ -520,10 +520,7 @@ class _RecipeDetailsPageState extends State<RecipeDetailsPage> {
     );
   }
 
-  Widget _buildStepCard({
-    required int number,
-    required String text,
-  }) {
+  Widget _buildStepCard({required int number, required String text}) {
     return Container(
       margin: const EdgeInsets.only(bottom: 14),
       padding: const EdgeInsets.all(16),
@@ -547,10 +544,7 @@ class _RecipeDetailsPageState extends State<RecipeDetailsPage> {
             duration: const Duration(milliseconds: 450),
             curve: Curves.easeOutBack,
             builder: (context, value, child) {
-              return Transform.scale(
-                scale: value,
-                child: child,
-              );
+              return Transform.scale(scale: value, child: child);
             },
             child: Container(
               width: 42,
@@ -618,10 +612,7 @@ class _RecipeDetailsPageState extends State<RecipeDetailsPage> {
         duration: const Duration(milliseconds: 450),
         curve: Curves.easeOutBack,
         builder: (context, scale, child) {
-          return Transform.scale(
-            scale: scale,
-            child: child,
-          );
+          return Transform.scale(scale: scale, child: child);
         },
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
@@ -633,11 +624,7 @@ class _RecipeDetailsPageState extends State<RecipeDetailsPage> {
                 color: softBlue,
                 borderRadius: BorderRadius.circular(16),
               ),
-              child: Icon(
-                icon,
-                color: navy,
-                size: 21,
-              ),
+              child: Icon(icon, color: navy, size: 21),
             ),
             const SizedBox(height: 10),
             Text(
@@ -668,10 +655,7 @@ class _AnimatedFadeSlide extends StatelessWidget {
   final Widget child;
   final int delay;
 
-  const _AnimatedFadeSlide({
-    required this.child,
-    this.delay = 0,
-  });
+  const _AnimatedFadeSlide({required this.child, this.delay = 0});
 
   @override
   Widget build(BuildContext context) {

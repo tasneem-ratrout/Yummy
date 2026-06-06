@@ -1,4 +1,5 @@
 // 📁 lib/features/screen/page_cook_screen/recipe_detail_screen.dart
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:frontend/core/config/app_config.dart';
@@ -8,6 +9,26 @@ import 'dart:convert';
 import '../../../core/services/cart_service.dart';
 import '../../../core/services/favorite_service.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+
+Widget _webResponsiveBody(
+  BuildContext context, {
+  required Widget child,
+  double maxWidth = 1180,
+  EdgeInsetsGeometry? webPadding,
+}) {
+  final isWeb = kIsWeb && MediaQuery.of(context).size.width >= 900;
+  if (!isWeb) return child;
+
+  return Center(
+    child: ConstrainedBox(
+      constraints: BoxConstraints(maxWidth: maxWidth),
+      child: Padding(
+        padding: webPadding ?? const EdgeInsets.symmetric(horizontal: 24),
+        child: child,
+      ),
+    ),
+  );
+}
 
 String fullImageUrl(dynamic image) {
   if (image == null) return '';
@@ -344,58 +365,63 @@ class _RecipeDetailScreenState extends State<RecipeDetailScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppColors.background,
-      body: SafeArea(
-        child: Column(
-          children: [
-            Expanded(
-              child: SingleChildScrollView(
-                child: Column(
-                  children: [
-                    _buildTopImageSection(),
-                    Transform.translate(
-                      offset: const Offset(0, -22),
-                      child: Container(
-                        width: double.infinity,
-                        decoration: const BoxDecoration(
-                          color: AppColors.white,
-                          borderRadius: BorderRadius.vertical(
-                            top: Radius.circular(28),
+      body: _webResponsiveBody(
+        context,
+        maxWidth: 1180,
+        webPadding: const EdgeInsets.symmetric(horizontal: 24),
+        child: SafeArea(
+          child: Column(
+            children: [
+              Expanded(
+                child: SingleChildScrollView(
+                  child: Column(
+                    children: [
+                      _buildTopImageSection(),
+                      Transform.translate(
+                        offset: const Offset(0, -22),
+                        child: Container(
+                          width: double.infinity,
+                          decoration: const BoxDecoration(
+                            color: AppColors.white,
+                            borderRadius: BorderRadius.vertical(
+                              top: Radius.circular(28),
+                            ),
                           ),
-                        ),
-                        child: Padding(
-                          padding: const EdgeInsets.fromLTRB(20, 18, 20, 10),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              _buildTitleAndRating(),
-                              const SizedBox(height: 20),
-                              _buildNutritionSection(),
-                              const SizedBox(height: 24),
-                              _buildIngredientsSection(), // 🔥 أضف هذا
-                              // 🔥🔥 هذا المهم
-                              const SizedBox(height: 24),
+                          child: Padding(
+                            padding: const EdgeInsets.fromLTRB(20, 18, 20, 10),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                _buildTitleAndRating(),
+                                const SizedBox(height: 20),
+                                _buildNutritionSection(),
+                                const SizedBox(height: 24),
+                                _buildIngredientsSection(), // 🔥 أضف هذا
+                                // 🔥🔥 هذا المهم
+                                const SizedBox(height: 24),
 
-                              _buildSizeSelection(),
-                              const SizedBox(height: 24),
-                              _buildReviewsSection(),
-                              const SizedBox(height: 32),
-
-                              if (_relatedRecipes.isNotEmpty) ...[
-                                _buildRelatedRecipesSection(),
+                                _buildSizeSelection(),
+                                const SizedBox(height: 24),
+                                _buildReviewsSection(),
                                 const SizedBox(height: 32),
+
+                                if (_relatedRecipes.isNotEmpty) ...[
+                                  _buildRelatedRecipesSection(),
+                                  const SizedBox(height: 32),
+                                ],
+                                const SizedBox(height: 22),
                               ],
-                              const SizedBox(height: 22),
-                            ],
+                            ),
                           ),
                         ),
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
               ),
-            ),
-            _buildBottomBar(),
-          ],
+              _buildBottomBar(),
+            ],
+          ),
         ),
       ),
     );

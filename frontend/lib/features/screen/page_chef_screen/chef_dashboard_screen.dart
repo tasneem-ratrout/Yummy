@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'dart:convert';
@@ -125,7 +126,9 @@ class Recipe {
 // 🏠 FUTURISTIC PREMIUM CHEF DASHBOARD
 // ═══════════════════════════════════════════════════════════════════════════
 class ChefDashboardScreen extends StatefulWidget {
-  const ChefDashboardScreen({super.key});
+  final VoidCallback? onViewOrders;
+
+  const ChefDashboardScreen({super.key, this.onViewOrders});
 
   @override
   State<ChefDashboardScreen> createState() => _ChefDashboardScreenState();
@@ -366,6 +369,10 @@ class _ChefDashboardScreenState extends State<ChefDashboardScreen>
     super.dispose();
   }
 
+  bool _isWebLayout(BuildContext context) {
+    return kIsWeb && MediaQuery.of(context).size.width >= 900;
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -381,16 +388,27 @@ class _ChefDashboardScreenState extends State<ChefDashboardScreen>
               : RefreshIndicator(
                   onRefresh: _loadDashboard,
                   color: AppColors.primary,
-                  child: CustomScrollView(
-                    physics: const BouncingScrollPhysics(),
-                    slivers: [
-                      SliverToBoxAdapter(child: _buildGlassmorphicHeader()),
-                      SliverToBoxAdapter(child: _buildStatsGrid()),
-                      SliverToBoxAdapter(child: _buildWeeklyEarningsChart()),
-                      SliverToBoxAdapter(child: _buildOrderStatusChart()),
-                      SliverToBoxAdapter(child: _buildQuickActions()),
-                      const SliverToBoxAdapter(child: SizedBox(height: 32)),
-                    ],
+                  child: Center(
+                    child: ConstrainedBox(
+                      constraints: BoxConstraints(
+                        maxWidth: _isWebLayout(context)
+                            ? 1320
+                            : double.infinity,
+                      ),
+                      child: CustomScrollView(
+                        physics: const BouncingScrollPhysics(),
+                        slivers: [
+                          SliverToBoxAdapter(child: _buildGlassmorphicHeader()),
+                          SliverToBoxAdapter(child: _buildStatsGrid()),
+                          SliverToBoxAdapter(
+                            child: _buildWeeklyEarningsChart(),
+                          ),
+                          SliverToBoxAdapter(child: _buildOrderStatusChart()),
+                          SliverToBoxAdapter(child: _buildQuickActions()),
+                          const SliverToBoxAdapter(child: SizedBox(height: 32)),
+                        ],
+                      ),
+                    ),
                   ),
                 ),
         ),
@@ -615,10 +633,10 @@ class _ChefDashboardScreenState extends State<ChefDashboardScreen>
       child: GridView.count(
         shrinkWrap: true,
         physics: const NeverScrollableScrollPhysics(),
-        crossAxisCount: 2,
+        crossAxisCount: _isWebLayout(context) ? 4 : 2,
         mainAxisSpacing: 16,
         crossAxisSpacing: 16,
-        childAspectRatio: 0.88,
+        childAspectRatio: _isWebLayout(context) ? 1.28 : 0.88,
         children: [
           _buildGlowingStatCard(
             icon: Icons.account_balance_wallet_rounded,
@@ -1437,7 +1455,8 @@ class _ChefDashboardScreenState extends State<ChefDashboardScreen>
                     Navigator.push(
                       context,
                       MaterialPageRoute(
-                        builder: (_) => const ChefOrdersScreen(),
+                        builder: (_) =>
+                            const ChefOrdersScreen(showBackButton: true),
                       ),
                     );
                   },

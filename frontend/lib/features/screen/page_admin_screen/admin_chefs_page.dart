@@ -196,6 +196,23 @@ class _AdminChefsPageState extends State<AdminChefsPage>
   }
 
   void _showChefDetails(Map<String, dynamic> chef) {
+    final isWeb = MediaQuery.of(context).size.width >= 900;
+
+    if (isWeb) {
+      showDialog(
+        context: context,
+        builder: (ctx) => Dialog(
+          backgroundColor: Colors.transparent,
+          insetPadding: const EdgeInsets.all(28),
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 620),
+            child: _ChefDetailsSheet(chef: chef),
+          ),
+        ),
+      );
+      return;
+    }
+
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -316,6 +333,7 @@ class _AdminChefsPageState extends State<AdminChefsPage>
               // Animated Header
               FadeTransition(
                 opacity: _headerController,
+
                 child: SlideTransition(
                   position:
                       Tween<Offset>(
@@ -328,24 +346,15 @@ class _AdminChefsPageState extends State<AdminChefsPage>
                         ),
                       ),
                   child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      const Text(
-                        'Chefs Management',
-                        style: TextStyle(
-                          fontSize: 20,
-                          fontWeight: FontWeight.w800,
-                          color: AppColors.deepBlue,
-                          letterSpacing: -0.5,
-                        ),
-                      ),
-                      const Spacer(),
                       AnimatedSwitcher(
                         duration: const Duration(milliseconds: 300),
                         child: Container(
                           key: ValueKey(_chefs.length),
                           padding: const EdgeInsets.symmetric(
                             horizontal: 12,
-                            vertical: 6,
+                            vertical: 8,
                           ),
                           decoration: BoxDecoration(
                             gradient: const LinearGradient(
@@ -531,27 +540,75 @@ class _AdminChefsPageState extends State<AdminChefsPage>
     return AnimatedBuilder(
       animation: _listController,
       builder: (context, child) {
-        return ListView.builder(
-          itemCount: filtered.length,
-          itemBuilder: (context, i) {
-            final startTime = (i * 0.08).clamp(0.0, 0.7);
-            final endTime = (startTime + 0.4).clamp(0.0, 1.0);
-            final anim = CurvedAnimation(
-              parent: _listController,
-              curve: Interval(startTime, endTime, curve: Curves.easeOutCubic),
-            );
+        return LayoutBuilder(
+          builder: (context, constraints) {
+            final isWeb = constraints.maxWidth >= 900;
 
-            final chef = filtered[i];
+            if (isWeb) {
+              final crossAxisCount = constraints.maxWidth >= 1200 ? 3 : 2;
+              return GridView.builder(
+                itemCount: filtered.length,
+                gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                  crossAxisCount: crossAxisCount,
+                  crossAxisSpacing: 16,
+                  mainAxisSpacing: 16,
+                  childAspectRatio: 2.45,
+                ),
+                itemBuilder: (context, i) {
+                  final startTime = (i * 0.08).clamp(0.0, 0.7);
+                  final endTime = (startTime + 0.4).clamp(0.0, 1.0);
+                  final anim = CurvedAnimation(
+                    parent: _listController,
+                    curve: Interval(
+                      startTime,
+                      endTime,
+                      curve: Curves.easeOutCubic,
+                    ),
+                  );
 
-            return FadeTransition(
-              opacity: anim,
-              child: SlideTransition(
-                position: Tween<Offset>(
-                  begin: const Offset(0.1, 0),
-                  end: Offset.zero,
-                ).animate(anim),
-                child: _buildChefCard(chef),
-              ),
+                  final chef = filtered[i];
+
+                  return FadeTransition(
+                    opacity: anim,
+                    child: SlideTransition(
+                      position: Tween<Offset>(
+                        begin: const Offset(0.1, 0),
+                        end: Offset.zero,
+                      ).animate(anim),
+                      child: _buildChefCard(chef),
+                    ),
+                  );
+                },
+              );
+            }
+
+            return ListView.builder(
+              itemCount: filtered.length,
+              itemBuilder: (context, i) {
+                final startTime = (i * 0.08).clamp(0.0, 0.7);
+                final endTime = (startTime + 0.4).clamp(0.0, 1.0);
+                final anim = CurvedAnimation(
+                  parent: _listController,
+                  curve: Interval(
+                    startTime,
+                    endTime,
+                    curve: Curves.easeOutCubic,
+                  ),
+                );
+
+                final chef = filtered[i];
+
+                return FadeTransition(
+                  opacity: anim,
+                  child: SlideTransition(
+                    position: Tween<Offset>(
+                      begin: const Offset(0.1, 0),
+                      end: Offset.zero,
+                    ).animate(anim),
+                    child: _buildChefCard(chef),
+                  ),
+                );
+              },
             );
           },
         );

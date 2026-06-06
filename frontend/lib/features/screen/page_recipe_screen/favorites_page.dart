@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import '/../../models/recipe_details_model.dart';
@@ -30,6 +31,13 @@ class _FavoritesPageState extends State<FavoritesPage> {
       ..['id'] = id;
   }
 
+  int _webColumns(double width) {
+    if (width >= 1400) return 4;
+    if (width >= 1050) return 3;
+    if (width >= 720) return 2;
+    return 1;
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -59,99 +67,57 @@ class _FavoritesPageState extends State<FavoritesPage> {
           return RefreshIndicator(
             onRefresh: FavoriteService.loadFavorites,
             color: const Color(0xff1B3C73),
-            child: ListView.separated(
-              padding: const EdgeInsets.all(16),
-              itemCount: favorites.length,
-              separatorBuilder: (_, __) => const SizedBox(height: 14),
-              itemBuilder: (context, index) {
-                final recipe = _normalizeRecipe(favorites[index]);
-                final model = _toRecipeModel(recipe);
-                final isFavorite = FavoriteService.isFavoriteRecipe(model.id);
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                if (!kIsWeb) {
+                  return ListView.separated(
+                    padding: const EdgeInsets.all(16),
+                    itemCount: favorites.length,
+                    separatorBuilder: (_, __) => const SizedBox(height: 14),
+                    itemBuilder: (context, index) {
+                      final recipe = _normalizeRecipe(favorites[index]);
+                      final model = _toRecipeModel(recipe);
+                      final isFavorite = FavoriteService.isFavoriteRecipe(
+                        model.id,
+                      );
 
-                return Material(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(26),
-                  elevation: 2,
-                  shadowColor: const Color(0xff1B3C73).withOpacity(0.12),
-                  child: InkWell(
-                    borderRadius: BorderRadius.circular(26),
-                    onTap: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (_) => RecipeDetailsPage(recipe: model),
-                        ),
+                      return _FavoriteRecipeCard(
+                        recipe: recipe,
+                        model: model,
+                        isFavorite: isFavorite,
+                        imageHeight: 220,
                       );
                     },
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        ClipRRect(
-                          borderRadius: const BorderRadius.vertical(
-                            top: Radius.circular(26),
-                          ),
-                          child: Stack(
-                            children: [
-                              Image.network(
-                                model.image,
-                                height: 220,
-                                width: double.infinity,
-                                fit: BoxFit.cover,
-                              ),
-                              Container(
-                                height: 220,
-                                decoration: BoxDecoration(
-                                  gradient: LinearGradient(
-                                    begin: Alignment.topCenter,
-                                    end: Alignment.bottomCenter,
-                                    colors: [
-                                      Colors.transparent,
-                                      Colors.black.withOpacity(0.55),
-                                    ],
-                                  ),
-                                ),
-                              ),
-                              Positioned(
-                                top: 14,
-                                right: 14,
-                                child: _FavoriteChip(
-                                  isFavorite: isFavorite,
-                                  onTap: () async {
-                                    await FavoriteService.toggleRecipe(recipe);
-                                  },
-                                ),
-                              ),
-                              Positioned(
-                                left: 18,
-                                right: 18,
-                                bottom: 18,
-                                child: Text(
-                                  model.title,
-                                  maxLines: 2,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: const TextStyle(
-                                    color: Colors.white,
-                                    fontSize: 22,
-                                    fontWeight: FontWeight.w900,
-                                    height: 1.2,
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                        Padding(
-                          padding: const EdgeInsets.fromLTRB(18, 16, 18, 18),
-                          child: Wrap(
-                            spacing: 10,
-                            runSpacing: 10,
-                            children: [
-                              _buildChip(model.cuisine),
-                              _buildChip('${model.calories} kcal'),
-                            ],
-                          ),
-                        ),
-                      ],
+                  );
+                }
+
+                final columns = _webColumns(constraints.maxWidth);
+                return Center(
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 1280),
+                    child: GridView.builder(
+                      padding: const EdgeInsets.fromLTRB(32, 28, 32, 40),
+                      itemCount: favorites.length,
+                      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                        crossAxisCount: columns,
+                        crossAxisSpacing: 22,
+                        mainAxisSpacing: 22,
+                        childAspectRatio: 0.88,
+                      ),
+                      itemBuilder: (context, index) {
+                        final recipe = _normalizeRecipe(favorites[index]);
+                        final model = _toRecipeModel(recipe);
+                        final isFavorite = FavoriteService.isFavoriteRecipe(
+                          model.id,
+                        );
+
+                        return _FavoriteRecipeCard(
+                          recipe: recipe,
+                          model: model,
+                          isFavorite: isFavorite,
+                          imageHeight: 240,
+                        );
+                      },
                     ),
                   ),
                 );
@@ -159,6 +125,109 @@ class _FavoritesPageState extends State<FavoritesPage> {
             ),
           );
         },
+      ),
+    );
+  }
+}
+
+class _FavoriteRecipeCard extends StatelessWidget {
+  final Map<String, dynamic> recipe;
+  final RecipeDetailsModel model;
+  final bool isFavorite;
+  final double imageHeight;
+
+  const _FavoriteRecipeCard({
+    required this.recipe,
+    required this.model,
+    required this.isFavorite,
+    required this.imageHeight,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.white,
+      borderRadius: BorderRadius.circular(26),
+      elevation: 2,
+      shadowColor: const Color(0xff1B3C73).withOpacity(0.12),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(26),
+        onTap: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(builder: (_) => RecipeDetailsPage(recipe: model)),
+          );
+        },
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            ClipRRect(
+              borderRadius: const BorderRadius.vertical(
+                top: Radius.circular(26),
+              ),
+              child: Stack(
+                children: [
+                  Image.network(
+                    model.image,
+                    height: imageHeight,
+                    width: double.infinity,
+                    fit: BoxFit.cover,
+                  ),
+                  Container(
+                    height: imageHeight,
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        begin: Alignment.topCenter,
+                        end: Alignment.bottomCenter,
+                        colors: [
+                          Colors.transparent,
+                          Colors.black.withOpacity(0.55),
+                        ],
+                      ),
+                    ),
+                  ),
+                  Positioned(
+                    top: 14,
+                    right: 14,
+                    child: _FavoriteChip(
+                      isFavorite: isFavorite,
+                      onTap: () async {
+                        await FavoriteService.toggleRecipe(recipe);
+                      },
+                    ),
+                  ),
+                  Positioned(
+                    left: 18,
+                    right: 18,
+                    bottom: 18,
+                    child: Text(
+                      model.title,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 22,
+                        fontWeight: FontWeight.w900,
+                        height: 1.2,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(18, 16, 18, 18),
+              child: Wrap(
+                spacing: 10,
+                runSpacing: 10,
+                children: [
+                  _buildChip(model.cuisine),
+                  _buildChip('${model.calories} kcal'),
+                ],
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

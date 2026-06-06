@@ -1,5 +1,6 @@
 import 'dart:convert';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
@@ -362,6 +363,10 @@ class _ChefBannersPageState extends State<ChefBannersPage>
   /// UI
   /// =========================================================
 
+  bool _isWebLayout(BuildContext context) {
+    return kIsWeb && MediaQuery.of(context).size.width >= 900;
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -418,9 +423,16 @@ class _ChefBannersPageState extends State<ChefBannersPage>
         icon: const Icon(Icons.add),
       ),
 
-      body: TabBarView(
-        controller: _tabController,
-        children: [_buildBannersTab(), _buildRequestsTab()],
+      body: Center(
+        child: ConstrainedBox(
+          constraints: BoxConstraints(
+            maxWidth: _isWebLayout(context) ? 1200 : double.infinity,
+          ),
+          child: TabBarView(
+            controller: _tabController,
+            children: [_buildBannersTab(), _buildRequestsTab()],
+          ),
+        ),
       ),
     );
   }

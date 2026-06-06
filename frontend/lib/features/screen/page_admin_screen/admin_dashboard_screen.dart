@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:convert';
@@ -17,12 +18,10 @@ import 'admin_settings_page.dart';
 import 'admin_application_icon.dart';
 import 'admin_notification_requests_page.dart';
 
-// ── Palette (matches screenshot) ──────────────────────────────────────────────
 const _kBg = Color(0xFFF0F4F8);
 const _kWhite = Colors.white;
 const _kNavy = Color(0xFF0D1F4C);
 const _kBlue = Color(0xFF1B5BCE);
-const _kBlueBtn = Color(0xFF1565C0);
 const _kBlueSft = Color(0xFFE8F0FE);
 const _kText = Color(0xFF0D1F4C);
 const _kSub = Color(0xFF6B7B99);
@@ -42,17 +41,17 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
   int _unreadCount = 0;
   int _pendingOrders = 0;
   int _reviewsCount = 0;
-  int _feedbackCount = 0;
   int _feedbackUnread = 0;
+  int _pendingBannerRequests = 0;
+
   Map<String, dynamic> _admin = {};
   bool _loadingAdmin = true;
   int _previousIndex = 0;
-  int _pendingBannerRequests = 0;
 
   List<Map<String, dynamic>> _notifications = [];
   late AnimationController _bellCtrl;
-
   late List<Widget> _pages;
+
   static const _titles = [
     'Dashboard',
     'Users',
@@ -65,6 +64,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
     'Application icon',
     'Settings',
   ];
+
   static const _icons = [
     Icons.dashboard_rounded,
     Icons.people_rounded,
@@ -81,12 +81,15 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
   @override
   void initState() {
     super.initState();
+
     _bellCtrl = AnimationController(
       duration: const Duration(milliseconds: 350),
       vsync: this,
     );
+
     _loadAdmin();
     _loadCounts();
+
     _pages = [
       const AdminStatsPage(),
       const AdminUsersPage(),
@@ -95,15 +98,10 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
       const AdminOrdersPage(),
       const AdminReviewsPage(),
       const AdminReportsPage(),
-
       AdminFeedbackPage(
-        onBack: () {
-          setState(() => _selectedIndex = _previousIndex);
-        },
+        onBack: () => setState(() => _selectedIndex = _previousIndex),
       ),
-
       const AdminApplicationIconPage(),
-
       const AdminSettingsPage(),
     ];
   }
@@ -114,6 +112,10 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
     super.dispose();
   }
 
+  bool _isWebLayout(BuildContext context) {
+    return kIsWeb && MediaQuery.of(context).size.width >= 900;
+  }
+
   Future<void> _loadAdmin() async {
     try {
       final t = await AuthService().getToken();
@@ -121,17 +123,20 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
         setState(() => _loadingAdmin = false);
         return;
       }
+
       final r = await http.get(
         Uri.parse('${AppConfig.baseUrl}/users/profile'),
         headers: {'Authorization': 'Bearer $t'},
       );
+
       if (r.statusCode == 200 && mounted) {
         setState(() {
           _admin = jsonDecode(r.body)['user'] ?? {};
           _loadingAdmin = false;
         });
-      } else if (mounted)
+      } else if (mounted) {
         setState(() => _loadingAdmin = false);
+      }
     } catch (_) {
       if (mounted) setState(() => _loadingAdmin = false);
     }
@@ -151,7 +156,6 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
 
       final List<Map<String, dynamic>> newNotifications = [];
 
-      // 🔥 ORDERS
       try {
         final r = await http.get(
           Uri.parse('${AppConfig.baseUrl}/orders/all'),
@@ -160,7 +164,6 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
 
         if (r.statusCode == 200) {
           final orders = (jsonDecode(r.body)['orders'] ?? []) as List;
-
           final pending = orders
               .where((o) => o['status'] == 'pending')
               .toList();
@@ -180,10 +183,9 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
           }
         }
       } catch (e) {
-        print('ORDERS ERROR => $e');
+        debugPrint('ORDERS ERROR => $e');
       }
 
-      // 🔥 REVIEWS
       try {
         final r = await http.get(
           Uri.parse('${AppConfig.baseUrl}/reviews/admin/all'),
@@ -203,7 +205,6 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
           for (var review in reviews) {
             newNotifications.add({
               'id': review['_id'],
-
               'type': 'review',
               'title': 'New Review',
               'sub': review['comment'] ?? 'New review added',
@@ -215,10 +216,9 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
           }
         }
       } catch (e) {
-        print('REVIEWS ERROR => $e');
+        debugPrint('REVIEWS ERROR => $e');
       }
 
-      // 🔥 FEEDBACK
       try {
         final r = await http.get(
           Uri.parse('${AppConfig.baseUrl}/feedback/admin/all'),
@@ -242,7 +242,6 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
           for (var feedback in unreadFeedbacks) {
             newNotifications.add({
               'id': feedback['_id'],
-
               'type': 'feedback',
               'title': 'New Feedback',
               'sub': feedback['message'] ?? 'Customer sent feedback',
@@ -254,10 +253,9 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
           }
         }
       } catch (e) {
-        print('FEEDBACK ERROR => $e');
+        debugPrint('FEEDBACK ERROR => $e');
       }
 
-      // 🔥 BANNER REQUESTS
       try {
         final r = await http.get(
           Uri.parse('${AppConfig.baseUrl}/banner-requests/admin'),
@@ -276,6 +274,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
 
           for (var req in pendingRequests) {
             newNotifications.add({
+              'id': req['_id'],
               'type': 'banner_request',
               'title': 'New Banner Request',
               'sub':
@@ -288,49 +287,36 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
           }
         }
       } catch (e) {
-        print('BANNER REQUEST ERROR => $e');
+        debugPrint('BANNER REQUEST ERROR => $e');
       }
-      //
-      // 🔥 NOTIFICATION REQUESTS
-      //
+
       try {
         final r = await http.get(
           Uri.parse('${AppConfig.baseUrl}/notification-requests/admin'),
-
           headers: h,
         );
 
         if (r.statusCode == 200) {
           final decoded = jsonDecode(r.body);
-
           final requests = decoded['requests'] ?? [];
-
-          final pending = requests
-              .where((req) => req['status'] == 'pending')
-              .toList();
+          final pending = requests.where((req) => req['status'] == 'pending');
 
           for (var req in pending) {
             newNotifications.add({
               'id': req['_id'],
-
               'type': 'notification_request',
-
               'title': 'Notification Request',
-
               'sub': '${req['chefName'] ?? 'Chef'} wants to send notification',
-
               'time': req['createdAt'],
-
               'icon': Icons.notifications_active,
-
               'color': Colors.purple,
             });
           }
         }
       } catch (e) {
-        print('NOTIFICATION REQUEST ERROR => $e');
+        debugPrint('NOTIFICATION REQUEST ERROR => $e');
       }
-      // 🔥 الأحدث فوق
+
       newNotifications.sort((a, b) {
         final at =
             DateTime.tryParse(a['time']?.toString() ?? '') ??
@@ -338,7 +324,6 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
         final bt =
             DateTime.tryParse(b['time']?.toString() ?? '') ??
             DateTime.fromMillisecondsSinceEpoch(0);
-
         return bt.compareTo(at);
       });
 
@@ -349,15 +334,22 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
         _reviewsCount = reviewsCount;
         _feedbackUnread = feedbackUnread;
         _pendingBannerRequests = bannerPending;
-
         _notifications = newNotifications;
-
         _unreadCount =
             pendingOrders + reviewsCount + feedbackUnread + bannerPending;
       });
     } catch (e) {
-      print('LOAD COUNTS ERROR => $e');
+      debugPrint('LOAD COUNTS ERROR => $e');
     }
+  }
+
+  void _changePage(int index) {
+    if (index >= _pages.length) return;
+
+    setState(() {
+      _previousIndex = _selectedIndex;
+      _selectedIndex = index;
+    });
   }
 
   void _showNotifications() {
@@ -370,22 +362,15 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
       builder: (_) => _NotifSheet(
         unreadCount: _unreadCount,
         notifications: _notifications,
-
+        isWeb: _isWebLayout(context),
         onNotificationRead: () {
           setState(() {
-            if (_unreadCount > 0) {
-              _unreadCount--;
-            }
+            if (_unreadCount > 0) _unreadCount--;
           });
         },
-
         onOpenPage: (index) {
           Navigator.pop(context);
-
-          setState(() {
-            _previousIndex = _selectedIndex;
-            _selectedIndex = index;
-          });
+          _changePage(index);
         },
       ),
     );
@@ -424,9 +409,11 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
         ],
       ),
     );
+
     if (ok == true && mounted) {
       final p = await SharedPreferences.getInstance();
       await p.clear();
+
       if (mounted) {
         Navigator.pushAndRemoveUntil(
           context,
@@ -439,208 +426,250 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
 
   @override
   Widget build(BuildContext context) {
-    // 🔥 حماية من أي index غلط
-    if (_selectedIndex >= _pages.length) {
-      _selectedIndex = 0;
-    }
+    if (_selectedIndex >= _pages.length) _selectedIndex = 0;
 
     final name = _admin['name'] ?? 'Admin';
-
     final img = _admin['profileImage'];
+    final isWeb = _isWebLayout(context);
+
+    if (isWeb) {
+      return Scaffold(
+        backgroundColor: _kBg,
+        body: Row(
+          children: [
+            SizedBox(width: 290, child: _sideMenu(name, img, isDrawer: false)),
+            Expanded(
+              child: Column(
+                children: [
+                  _webTopBar(name, img),
+                  Expanded(
+                    child: Center(
+                      child: ConstrainedBox(
+                        constraints: const BoxConstraints(maxWidth: 1400),
+                        child: Padding(
+                          padding: const EdgeInsets.fromLTRB(28, 24, 28, 28),
+                          child: ClipRRect(
+                            borderRadius: BorderRadius.circular(24),
+                            child: Container(
+                              color: _kBg,
+                              child: IndexedStack(
+                                index: _selectedIndex,
+                                children: _pages,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      );
+    }
 
     return Scaffold(
       backgroundColor: _kBg,
-
       appBar: _appBar(name, img),
-
-      drawer: _drawer(name, img),
-
+      drawer: _sideMenu(name, img, isDrawer: true),
       body: IndexedStack(index: _selectedIndex, children: _pages),
     );
   }
 
-  // ── AppBar ─────────────────────────────────────────────────────────────────
-  AppBar _appBar(String name, String? img) => AppBar(
+  PreferredSizeWidget _appBar(String name, String? img) => AppBar(
     backgroundColor: _kNavy,
     elevation: 0,
     leadingWidth: 60,
     leading: Builder(
-      builder: (ctx) => GestureDetector(
-        onTap: () => Scaffold.of(ctx).openDrawer(),
-        child: Center(
-          child: _Avatar(
-            name: name,
-            imageUrl: img,
-            radius: 18,
-            border: true,
-            loadingAdmin: _loadingAdmin,
-          ),
-        ),
+      builder: (ctx) => IconButton(
+        icon: const Icon(Icons.menu_rounded, color: Colors.white, size: 28),
+        onPressed: () => Scaffold.of(ctx).openDrawer(),
       ),
     ),
-    title: Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          name,
-          style: const TextStyle(
-            color: _kWhite,
-            fontSize: 16,
-            fontWeight: FontWeight.w700,
-            letterSpacing: -0.3,
-          ),
-        ),
-      ],
-    ),
-    actions: [
-      Stack(
-        children: [
-          AnimatedBuilder(
-            animation: _bellCtrl,
-            builder: (_, child) => Transform.rotate(
-              angle: _bellCtrl.value < 0.5
-                  ? _bellCtrl.value * 0.3
-                  : (1 - _bellCtrl.value) * -0.3,
-              child: child,
-            ),
-            child: IconButton(
-              icon: const Icon(
-                Icons.notifications_rounded,
-                color: _kWhite,
-                size: 24,
-              ),
-              onPressed: _showNotifications,
-            ),
-          ),
-          if (_unreadCount > 0)
-            Positioned(
-              right: 8,
-              top: 8,
-              child: Container(
-                padding: const EdgeInsets.all(3),
-                decoration: const BoxDecoration(
-                  color: _kRed,
-                  shape: BoxShape.circle,
-                ),
-                constraints: const BoxConstraints(minWidth: 16, minHeight: 16),
-                child: Text(
-                  _unreadCount > 99 ? '99+' : '$_unreadCount',
-                  style: const TextStyle(
-                    color: _kWhite,
-                    fontSize: 9,
-                    fontWeight: FontWeight.bold,
-                  ),
-                  textAlign: TextAlign.center,
-                ),
-              ),
-            ),
-        ],
+    title: Text(
+      _titles[_selectedIndex],
+      style: const TextStyle(
+        color: _kWhite,
+        fontSize: 16,
+        fontWeight: FontWeight.w700,
+        letterSpacing: -0.3,
       ),
-      const SizedBox(width: 6),
-    ],
+    ),
+    actions: [_notificationButton(), const SizedBox(width: 6)],
   );
 
-  // ── Drawer ─────────────────────────────────────────────────────────────────
-  Widget _drawer(String name, String? img) => Drawer(
-    backgroundColor: _kNavy,
-    child: SafeArea(
-      child: Column(
+  Widget _webTopBar(String name, String? img) {
+    return Container(
+      height: 82,
+      padding: const EdgeInsets.symmetric(horizontal: 28),
+      decoration: const BoxDecoration(
+        color: _kWhite,
+        border: Border(bottom: BorderSide(color: _kDivide)),
+      ),
+      child: Row(
         children: [
-          // Profile
-          Padding(
-            padding: const EdgeInsets.fromLTRB(20, 28, 20, 20),
-            child: Column(
-              children: [
-                Container(
-                  padding: const EdgeInsets.all(3),
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    border: Border.all(
-                      color: _kWhite.withOpacity(0.4),
-                      width: 2,
-                    ),
-                  ),
-                  child: _Avatar(name: name, imageUrl: img, radius: 40),
-                ),
-                const SizedBox(height: 12),
-                Text(
-                  name,
-                  style: const TextStyle(
-                    color: _kWhite,
-                    fontSize: 16,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-
-                const SizedBox(height: 12),
-                _Badge(
-                  label: name.toUpperCase(),
-                  icon: Icons.admin_panel_settings_rounded,
-                  color: const Color(0xFF80B0FF),
-                  bg: Color(0x40346EB5),
-                ),
-                if (_unreadCount > 0) ...[
-                  const SizedBox(height: 8),
-
-                  _Badge(
-                    label: '${_unreadCount} Notifications',
-
-                    icon: Icons.notifications_active_rounded,
-
-                    color: Colors.orange,
-
-                    bg: Colors.orange.withOpacity(0.18),
-                  ),
-                ],
-              ],
+          Text(
+            _titles[_selectedIndex],
+            style: const TextStyle(
+              color: _kText,
+              fontSize: 26,
+              fontWeight: FontWeight.w800,
+              letterSpacing: -0.5,
             ),
           ),
+          const Spacer(),
+          _notificationButton(isDark: false),
+        ],
+      ),
+    );
+  }
 
-          Divider(color: _kWhite.withOpacity(0.08), height: 1),
-          const SizedBox(height: 6),
+  Widget _notificationButton({bool isDark = true}) {
+    final color = isDark ? _kWhite : _kText;
 
-          // Nav
-          Expanded(
-            child: ListView.builder(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-              itemCount: _titles.length,
-              itemBuilder: (ctx, i) => _NavItem(
-                icon: _icons[i],
-                label: _titles[i],
-                isSelected: _selectedIndex == i,
-                badge: _titles[i] == 'Orders'
-                    ? _pendingOrders
-                    : _titles[i] == 'Reviews'
-                    ? _reviewsCount
-                    : _titles[i] == 'Feedback'
-                    ? _feedbackUnread
-                    : _titles[i] == 'Banners'
-                    ? _pendingBannerRequests
-                    : 0,
-                onTap: () {
-                  if (i >= _pages.length) {
-                    return;
-                  }
-
-                  setState(() {
-                    _previousIndex = _selectedIndex;
-
-                    _selectedIndex = i;
-                  });
-
-                  Navigator.pop(ctx);
-                },
+    return Stack(
+      children: [
+        AnimatedBuilder(
+          animation: _bellCtrl,
+          builder: (_, child) => Transform.rotate(
+            angle: _bellCtrl.value < 0.5
+                ? _bellCtrl.value * 0.3
+                : (1 - _bellCtrl.value) * -0.3,
+            child: child,
+          ),
+          child: IconButton(
+            icon: Icon(Icons.notifications_rounded, color: color, size: 24),
+            onPressed: _showNotifications,
+          ),
+        ),
+        if (_unreadCount > 0)
+          Positioned(
+            right: 8,
+            top: 8,
+            child: Container(
+              padding: const EdgeInsets.all(3),
+              constraints: const BoxConstraints(minWidth: 16, minHeight: 16),
+              decoration: const BoxDecoration(
+                color: _kRed,
+                shape: BoxShape.circle,
+              ),
+              child: Text(
+                _unreadCount > 99 ? '99+' : '$_unreadCount',
+                style: const TextStyle(
+                  color: _kWhite,
+                  fontSize: 9,
+                  fontWeight: FontWeight.bold,
+                ),
+                textAlign: TextAlign.center,
               ),
             ),
           ),
+      ],
+    );
+  }
 
-          // Logout
-          Builder(
-            builder: (ctx) => Padding(
+  Widget _sideMenu(String name, String? img, {required bool isDrawer}) {
+    final menu = Container(
+      color: _kNavy,
+      child: SafeArea(
+        child: Column(
+          children: [
+            Padding(
+              padding: EdgeInsets.fromLTRB(
+                isDrawer ? 20 : 24,
+                isDrawer ? 28 : 26,
+                isDrawer ? 20 : 24,
+                20,
+              ),
+              child: Column(
+                children: [
+                  Container(padding: const EdgeInsets.all(3)),
+                  const SizedBox(height: 12),
+                  const Text(
+                    'Yummy',
+                    style: TextStyle(
+                      color: _kWhite,
+                      fontSize: 35,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    _loadingAdmin
+                        ? 'Loading...'
+                        : (_admin['name']?.toString().isNotEmpty == true
+                              ? _admin['name']
+                              : 'Admin'),
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(
+                      color: _kWhite,
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+
+                  const SizedBox(height: 4),
+
+                  Text(
+                    _loadingAdmin ? '' : (_admin['email']?.toString() ?? ''),
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      color: _kWhite.withOpacity(0.7),
+                      fontSize: 12,
+                    ),
+                  ),
+
+                  const SizedBox(height: 12),
+                  const SizedBox(height: 12),
+
+                  if (_unreadCount > 0) ...[
+                    const SizedBox(height: 8),
+                    _Badge(
+                      label: '${_unreadCount} Notifications',
+                      icon: Icons.notifications_active_rounded,
+                      color: Colors.orange,
+                      bg: Colors.orange.withOpacity(0.18),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+            Divider(color: _kWhite.withOpacity(0.08), height: 1),
+            const SizedBox(height: 8),
+            Expanded(
+              child: ListView.builder(
+                padding: EdgeInsets.symmetric(
+                  horizontal: isDrawer ? 10 : 14,
+                  vertical: 4,
+                ),
+                itemCount: _titles.length,
+                itemBuilder: (ctx, i) => _NavItem(
+                  icon: _icons[i],
+                  label: _titles[i],
+                  isSelected: _selectedIndex == i,
+                  badge: _titles[i] == 'Orders'
+                      ? _pendingOrders
+                      : _titles[i] == 'Reviews'
+                      ? _reviewsCount
+                      : _titles[i] == 'Feedback'
+                      ? _feedbackUnread
+                      : _titles[i] == 'Banners'
+                      ? _pendingBannerRequests
+                      : 0,
+                  onTap: () {
+                    _changePage(i);
+                    if (isDrawer) Navigator.pop(ctx);
+                  },
+                ),
+              ),
+            ),
+            Padding(
               padding: const EdgeInsets.fromLTRB(14, 6, 14, 18),
               child: _TapScale(
                 onTap: () {
-                  Navigator.pop(ctx);
+                  if (isDrawer) Navigator.pop(context);
                   _doLogout();
                 },
                 child: Container(
@@ -673,14 +702,15 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
                 ),
               ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
-    ),
-  );
+    );
+
+    return isDrawer ? Drawer(backgroundColor: _kNavy, child: menu) : menu;
+  }
 }
 
-// ── Drawer nav item ────────────────────────────────────────────────────────────
 class _NavItem extends StatelessWidget {
   final IconData icon;
   final String label;
@@ -701,11 +731,11 @@ class _NavItem extends StatelessWidget {
     onTap: onTap,
     child: AnimatedContainer(
       duration: const Duration(milliseconds: 180),
-      margin: const EdgeInsets.symmetric(vertical: 3),
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      margin: const EdgeInsets.symmetric(vertical: 4),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
       decoration: BoxDecoration(
         color: isSelected ? _kWhite.withOpacity(0.12) : Colors.transparent,
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(14),
         border: isSelected
             ? const Border(left: BorderSide(color: Color(0xFF60B4FF), width: 3))
             : null,
@@ -729,7 +759,7 @@ class _NavItem extends StatelessWidget {
             ),
           ),
           if (badge > 0)
-            (label == 'Feedback'
+            label == 'Feedback'
                 ? Container(
                     width: 10,
                     height: 10,
@@ -755,14 +785,13 @@ class _NavItem extends StatelessWidget {
                         fontWeight: FontWeight.bold,
                       ),
                     ),
-                  )),
+                  ),
         ],
       ),
     ),
   );
 }
 
-// ── Reusable Avatar ────────────────────────────────────────────────────────────
 class _Avatar extends StatelessWidget {
   final String name;
   final String? imageUrl;
@@ -781,6 +810,7 @@ class _Avatar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     Widget avatar;
+
     if (loadingAdmin) {
       avatar = CircleAvatar(
         radius: radius,
@@ -794,7 +824,7 @@ class _Avatar extends StatelessWidget {
         backgroundImage: imageUrl != null && imageUrl!.isNotEmpty
             ? NetworkImage(imageUrl!)
             : null,
-        child: imageUrl == null
+        child: imageUrl == null || imageUrl!.isEmpty
             ? Text(
                 name.isNotEmpty ? name[0].toUpperCase() : 'A',
                 style: TextStyle(
@@ -806,7 +836,9 @@ class _Avatar extends StatelessWidget {
             : null,
       );
     }
+
     if (!border) return avatar;
+
     return Container(
       decoration: BoxDecoration(
         shape: BoxShape.circle,
@@ -817,7 +849,6 @@ class _Avatar extends StatelessWidget {
   }
 }
 
-// ── Small badge pill ──────────────────────────────────────────────────────────
 class _Badge extends StatelessWidget {
   final String label;
   final IconData icon;
@@ -857,17 +888,19 @@ class _Badge extends StatelessWidget {
   );
 }
 
-// ── Notification sheet ─────────────────────────────────────────────────────────
 class _NotifSheet extends StatefulWidget {
   final int unreadCount;
   final List<Map<String, dynamic>> notifications;
   final Function(int index) onOpenPage;
   final VoidCallback onNotificationRead;
+  final bool isWeb;
+
   const _NotifSheet({
     required this.unreadCount,
     required this.notifications,
     required this.onOpenPage,
     required this.onNotificationRead,
+    required this.isWeb,
   });
 
   @override
@@ -881,7 +914,6 @@ class _NotifSheetState extends State<_NotifSheet>
   @override
   void initState() {
     super.initState();
-
     _ctrl = AnimationController(
       duration: const Duration(milliseconds: 320),
       vsync: this,
@@ -911,304 +943,286 @@ class _NotifSheetState extends State<_NotifSheet>
 
   @override
   Widget build(BuildContext context) {
+    final height = MediaQuery.of(context).size.height;
+    final sheetWidth = widget.isWeb ? 560.0 : double.infinity;
+
     return SlideTransition(
       position: Tween<Offset>(
         begin: const Offset(0, 1),
         end: Offset.zero,
       ).animate(CurvedAnimation(parent: _ctrl, curve: Curves.easeOutCubic)),
-      child: Container(
-        height: MediaQuery.of(context).size.height * 0.6,
-        decoration: const BoxDecoration(
-          color: _kWhite,
-          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-        ),
-        child: Column(
-          children: [
-            Container(
-              margin: const EdgeInsets.only(top: 12),
-              width: 36,
-              height: 4,
-              decoration: BoxDecoration(
-                color: _kDivide,
-                borderRadius: BorderRadius.circular(2),
-              ),
+      child: Align(
+        alignment: widget.isWeb
+            ? Alignment.bottomRight
+            : Alignment.bottomCenter,
+        child: Container(
+          width: sheetWidth,
+          height: widget.isWeb ? height * 0.72 : height * 0.6,
+          margin: EdgeInsets.only(
+            right: widget.isWeb ? 28 : 0,
+            bottom: widget.isWeb ? 24 : 0,
+          ),
+          decoration: BoxDecoration(
+            color: _kWhite,
+            borderRadius: BorderRadius.vertical(
+              top: const Radius.circular(24),
+              bottom: Radius.circular(widget.isWeb ? 24 : 0),
             ),
-
-            Padding(
-              padding: const EdgeInsets.fromLTRB(20, 16, 16, 12),
-              child: Row(
-                children: [
-                  const Text(
-                    'Notifications',
-                    style: TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.w700,
-                      color: _kText,
+            boxShadow: [
+              if (widget.isWeb)
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.12),
+                  blurRadius: 30,
+                  offset: const Offset(0, 12),
+                ),
+            ],
+          ),
+          child: Column(
+            children: [
+              Container(
+                margin: const EdgeInsets.only(top: 12),
+                width: 36,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: _kDivide,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 16, 16, 12),
+                child: Row(
+                  children: [
+                    const Text(
+                      'Notifications',
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.w700,
+                        color: _kText,
+                      ),
                     ),
-                  ),
-                  const Spacer(),
-                  if (widget.unreadCount > 0)
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 10,
-                        vertical: 4,
+                    const Spacer(),
+                    if (widget.unreadCount > 0)
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 10,
+                          vertical: 4,
+                        ),
+                        decoration: BoxDecoration(
+                          color: _kBlueSft,
+                          borderRadius: BorderRadius.circular(20),
+                        ),
+                        child: Text(
+                          '${widget.unreadCount} new',
+                          style: const TextStyle(
+                            color: _kBlue,
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
                       ),
-                      decoration: BoxDecoration(
-                        color: _kBlueSft,
-                        borderRadius: BorderRadius.circular(20),
-                      ),
-                      child: Text(
-                        '${widget.unreadCount} new',
-                        style: const TextStyle(
+                    const SizedBox(width: 8),
+                    GestureDetector(
+                      onTap: () => Navigator.pop(context),
+                      child: Container(
+                        padding: const EdgeInsets.all(6),
+                        decoration: BoxDecoration(
+                          color: _kBlueSft,
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: const Icon(
+                          Icons.close_rounded,
                           color: _kBlue,
-                          fontSize: 12,
-                          fontWeight: FontWeight.w600,
+                          size: 18,
                         ),
                       ),
                     ),
-                  const SizedBox(width: 8),
-                  GestureDetector(
-                    onTap: () => Navigator.pop(context),
-                    child: Container(
-                      padding: const EdgeInsets.all(6),
-                      decoration: BoxDecoration(
-                        color: _kBlueSft,
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: const Icon(
-                        Icons.close_rounded,
-                        color: _kBlue,
-                        size: 18,
-                      ),
-                    ),
-                  ),
-                ],
+                  ],
+                ),
               ),
-            ),
-
-            Divider(height: 1, color: _kDivide),
-
-            Expanded(
-              child: widget.notifications.isEmpty
-                  ? Center(
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Container(
-                            padding: const EdgeInsets.all(20),
-                            decoration: const BoxDecoration(
-                              color: _kBlueSft,
-                              shape: BoxShape.circle,
-                            ),
-                            child: const Icon(
-                              Icons.notifications_off_rounded,
-                              color: _kBlue,
-                              size: 36,
-                            ),
+              Divider(height: 1, color: _kDivide),
+              Expanded(
+                child: widget.notifications.isEmpty
+                    ? const Center(
+                        child: Text(
+                          'No notifications',
+                          style: TextStyle(
+                            fontWeight: FontWeight.w600,
+                            color: _kText,
+                            fontSize: 15,
                           ),
-                          const SizedBox(height: 14),
-                          const Text(
-                            'No notifications',
-                            style: TextStyle(
-                              fontWeight: FontWeight.w600,
-                              color: _kText,
-                              fontSize: 15,
-                            ),
-                          ),
-                          const SizedBox(height: 4),
-                          const Text(
-                            "You're all caught up!",
-                            style: TextStyle(color: _kSub, fontSize: 13),
-                          ),
-                        ],
-                      ),
-                    )
-                  : AnimatedBuilder(
-                      animation: _ctrl,
-                      builder: (_, _) => ListView.separated(
-                        padding: const EdgeInsets.all(16),
-                        itemCount: widget.notifications.length,
-                        separatorBuilder: (_, _) => const SizedBox(height: 10),
-                        itemBuilder: (_, i) {
-                          final n = widget.notifications[i];
+                        ),
+                      )
+                    : AnimatedBuilder(
+                        animation: _ctrl,
+                        builder: (_, _) => ListView.separated(
+                          padding: EdgeInsets.all(widget.isWeb ? 20 : 16),
+                          itemCount: widget.notifications.length,
+                          separatorBuilder: (_, _) =>
+                              const SizedBox(height: 10),
+                          itemBuilder: (_, i) {
+                            final n = widget.notifications[i];
+                            final color = n['color'] as Color;
+                            final startTime = (i * 0.1).clamp(0.0, 0.7);
 
-                          final color = n['color'] as Color;
-                          final startTime = (i * 0.1).clamp(0.0, 0.7);
+                            final anim = CurvedAnimation(
+                              parent: _ctrl,
+                              curve: Interval(
+                                startTime,
+                                (startTime + 0.4).clamp(0.0, 1.0),
+                                curve: Curves.easeOutCubic,
+                              ),
+                            );
 
-                          final anim = CurvedAnimation(
-                            parent: _ctrl,
-                            curve: Interval(
-                              startTime,
-                              (startTime + 0.4).clamp(0.0, 1.0),
-                              curve: Curves.easeOutCubic,
-                            ),
-                          );
+                            return FadeTransition(
+                              opacity: anim,
+                              child: SlideTransition(
+                                position: Tween<Offset>(
+                                  begin: const Offset(0.15, 0),
+                                  end: Offset.zero,
+                                ).animate(anim),
+                                child: InkWell(
+                                  borderRadius: BorderRadius.circular(14),
+                                  onTap: () async {
+                                    final id = n['id'];
+                                    final type = n['type'];
+                                    final pageIndex = n['pageIndex'];
 
-                          return FadeTransition(
-                            opacity: anim,
-                            child: SlideTransition(
-                              position: Tween<Offset>(
-                                begin: const Offset(0.15, 0),
-                                end: Offset.zero,
-                              ).animate(anim),
-                              child: InkWell(
-                                borderRadius: BorderRadius.circular(14),
-                                onTap: () async {
-                                  final id = n['id'];
+                                    String? url;
 
-                                  final type = n['type'];
+                                    if (type == 'review') {
+                                      url =
+                                          '${AppConfig.baseUrl}/reviews/read/$id';
+                                    }
 
-                                  final pageIndex = n['pageIndex'];
+                                    if (type == 'feedback') {
+                                      url =
+                                          '${AppConfig.baseUrl}/feedback/read/$id';
+                                    }
 
-                                  String? url;
+                                    if (type == 'banner_request') {
+                                      url =
+                                          '${AppConfig.baseUrl}/banner-requests/read/$id';
+                                    }
 
-                                  /// REVIEW
-                                  if (type == 'review') {
-                                    url =
-                                        '${AppConfig.baseUrl}/reviews/read/$id';
-                                  }
+                                    if (type == 'notification_request') {
+                                      Navigator.push(
+                                        context,
+                                        MaterialPageRoute(
+                                          builder: (_) =>
+                                              const AdminNotificationRequestsPage(),
+                                        ),
+                                      );
+                                      return;
+                                    }
 
-                                  /// FEEDBACK
-                                  if (type == 'feedback') {
-                                    url =
-                                        '${AppConfig.baseUrl}/feedback/read/$id';
-                                  }
+                                    try {
+                                      if (url != null) {
+                                        final prefs =
+                                            await SharedPreferences.getInstance();
+                                        final token = prefs.getString('token');
 
-                                  /// BANNER REQUEST
-                                  if (type == 'banner_request') {
-                                    url =
-                                        '${AppConfig.baseUrl}/banner-requests/read/$id';
-                                  }
-
-                                  /// 🔥 notification request page
-                                  if (type == 'notification_request') {
-                                    Navigator.push(
-                                      context,
-                                      MaterialPageRoute(
-                                        builder: (_) =>
-                                            const AdminNotificationRequestsPage(),
-                                      ),
-                                    );
-
-                                    return;
-                                  }
-
-                                  /// 🔥 افتح الصفحة العادية
-                                  if (pageIndex is int) {
-                                    widget.onOpenPage(pageIndex);
-                                  }
-                                  try {
-                                    if (url != null) {
-                                      final prefs =
-                                          await SharedPreferences.getInstance();
-
-                                      final token = prefs.getString('token');
-
-                                      await http.patch(
-                                        Uri.parse(url),
-                                        headers: {
-                                          'Authorization': 'Bearer $token',
-                                        },
+                                        await http.patch(
+                                          Uri.parse(url),
+                                          headers: {
+                                            'Authorization': 'Bearer $token',
+                                          },
+                                        );
+                                      }
+                                    } catch (e) {
+                                      debugPrint(
+                                        'READ NOTIFICATION ERROR => $e',
                                       );
                                     }
-                                  } catch (e) {
-                                    print('READ NOTIFICATION ERROR => $e');
-                                  }
 
-                                  /// 🔥 حذف الإشعار محلي
-                                  setState(() {
-                                    widget.notifications.removeAt(i);
-                                  });
+                                    setState(() {
+                                      widget.notifications.removeAt(i);
+                                    });
 
-                                  /// 🔥 نقص العدد
-                                  widget.onNotificationRead();
+                                    widget.onNotificationRead();
 
-                                  /// 🔥 افتح الصفحة
-                                  if (pageIndex is int) {
-                                    widget.onOpenPage(pageIndex);
-                                  }
-                                },
-                                child: Container(
-                                  padding: const EdgeInsets.all(14),
-                                  decoration: BoxDecoration(
-                                    color: _kWhite,
-                                    borderRadius: BorderRadius.circular(14),
-                                    border: Border.all(color: _kDivide),
-                                  ),
-                                  child: Row(
-                                    children: [
-                                      Container(
-                                        padding: const EdgeInsets.all(9),
-                                        decoration: BoxDecoration(
-                                          color: color.withOpacity(0.1),
-                                          borderRadius: BorderRadius.circular(
-                                            10,
+                                    if (pageIndex is int) {
+                                      widget.onOpenPage(pageIndex);
+                                    }
+                                  },
+                                  child: Container(
+                                    padding: const EdgeInsets.all(14),
+                                    decoration: BoxDecoration(
+                                      color: _kWhite,
+                                      borderRadius: BorderRadius.circular(14),
+                                      border: Border.all(color: _kDivide),
+                                    ),
+                                    child: Row(
+                                      children: [
+                                        Container(
+                                          padding: const EdgeInsets.all(9),
+                                          decoration: BoxDecoration(
+                                            color: color.withOpacity(0.1),
+                                            borderRadius: BorderRadius.circular(
+                                              10,
+                                            ),
+                                          ),
+                                          child: Icon(
+                                            n['icon'] as IconData,
+                                            color: color,
+                                            size: 18,
                                           ),
                                         ),
-                                        child: Icon(
-                                          n['icon'] as IconData,
-                                          color: color,
-                                          size: 18,
-                                        ),
-                                      ),
-
-                                      const SizedBox(width: 12),
-
-                                      Expanded(
-                                        child: Column(
-                                          crossAxisAlignment:
-                                              CrossAxisAlignment.start,
-                                          children: [
-                                            Text(
-                                              n['title']?.toString() ?? '',
-                                              style: const TextStyle(
-                                                fontSize: 13,
-                                                fontWeight: FontWeight.w700,
-                                                color: _kText,
+                                        const SizedBox(width: 12),
+                                        Expanded(
+                                          child: Column(
+                                            crossAxisAlignment:
+                                                CrossAxisAlignment.start,
+                                            children: [
+                                              Text(
+                                                n['title']?.toString() ?? '',
+                                                style: const TextStyle(
+                                                  fontSize: 13,
+                                                  fontWeight: FontWeight.w700,
+                                                  color: _kText,
+                                                ),
                                               ),
-                                            ),
-                                            const SizedBox(height: 2),
-                                            Text(
-                                              n['sub']?.toString() ?? '',
-                                              maxLines: 1,
-                                              overflow: TextOverflow.ellipsis,
-                                              style: const TextStyle(
-                                                fontSize: 11,
-                                                color: _kSub,
+                                              const SizedBox(height: 2),
+                                              Text(
+                                                n['sub']?.toString() ?? '',
+                                                maxLines: 1,
+                                                overflow: TextOverflow.ellipsis,
+                                                style: const TextStyle(
+                                                  fontSize: 11,
+                                                  color: _kSub,
+                                                ),
                                               ),
-                                            ),
-                                          ],
+                                            ],
+                                          ),
                                         ),
-                                      ),
-
-                                      Text(
-                                        _timeAgo(n['time']),
-                                        style: const TextStyle(
-                                          fontSize: 10,
-                                          color: _kSub,
+                                        Text(
+                                          _timeAgo(n['time']),
+                                          style: const TextStyle(
+                                            fontSize: 10,
+                                            color: _kSub,
+                                          ),
                                         ),
-                                      ),
-                                    ],
+                                      ],
+                                    ),
                                   ),
                                 ),
                               ),
-                            ),
-                          );
-                        },
+                            );
+                          },
+                        ),
                       ),
-                    ),
-            ),
-          ],
+              ),
+            ],
+          ),
         ),
       ),
     );
   }
 }
 
-// ── TapScale helper ────────────────────────────────────────────────────────────
 class _TapScale extends StatefulWidget {
   final Widget child;
   final VoidCallback onTap;
+
   const _TapScale({required this.child, required this.onTap});
 
   @override

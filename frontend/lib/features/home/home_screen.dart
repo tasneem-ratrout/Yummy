@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../core/providers/auth_provider.dart';
@@ -76,6 +77,10 @@ class _HomeScreenState extends State<HomeScreen>
     fontWeight: FontWeight.w800,
     color: AppColors.deepBlue,
   );
+
+  bool _isWebLayout(BuildContext context) {
+    return kIsWeb && MediaQuery.of(context).size.width >= 900;
+  }
 
   HomeProvider get _homeProvider => context.read<HomeProvider>();
   UserProvider get _userProvider => context.read<UserProvider>();
@@ -2235,6 +2240,248 @@ class _HomeScreenState extends State<HomeScreen>
     );
   }
 
+  Widget _buildHomeHeader(String userName, String? userImageUrl, bool isWeb) {
+    return Row(
+      children: [
+        InkWell(
+          onTap: _goToProfile,
+          borderRadius: BorderRadius.circular(32),
+          child: Container(
+            padding: const EdgeInsets.all(2.5),
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              border: Border.all(color: AppColors.navy, width: 2.2),
+            ),
+            child: CircleAvatar(
+              radius: isWeb ? 28 : 24,
+              backgroundColor: AppColors.babyBlueLight,
+              backgroundImage: userImageUrl != null
+                  ? NetworkImage(userImageUrl)
+                  : null,
+              child: userImageUrl == null
+                  ? Text(
+                      getInitials(userName),
+                      style: TextStyle(
+                        fontSize: isWeb ? 18 : 16,
+                        fontWeight: FontWeight.bold,
+                        color: AppColors.deepBlue,
+                      ),
+                    )
+                  : null,
+            ),
+          ),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                greeting(),
+                style: const TextStyle(fontSize: 13, color: AppColors.blueGray),
+              ),
+              const SizedBox(height: 2),
+              Text(
+                userName,
+                style: TextStyle(
+                  fontSize: isWeb ? 24 : 19,
+                  fontWeight: FontWeight.w800,
+                  color: AppColors.deepBlue,
+                ),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(width: 8),
+        _buildStreakFireBadge(),
+        const SizedBox(width: 8),
+        Container(
+          decoration: BoxDecoration(
+            color: AppColors.white,
+            borderRadius: BorderRadius.circular(16),
+            boxShadow: [
+              BoxShadow(
+                color: AppColors.navy.withValues(alpha: 0.04),
+                blurRadius: 10,
+                offset: const Offset(0, 4),
+              ),
+            ],
+          ),
+          child: IconButton(
+            onPressed: () {
+              _scaffoldKey.currentState?.openEndDrawer();
+            },
+            icon: const Icon(Icons.menu_rounded, color: AppColors.deepBlue),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildDateStripBlock({required bool isWeb}) {
+    return SizedBox(
+      width: double.infinity,
+      child: Column(
+        crossAxisAlignment: isWeb
+            ? CrossAxisAlignment.start
+            : CrossAxisAlignment.stretch,
+        children: [
+          Align(
+            alignment: isWeb ? Alignment.centerLeft : Alignment.centerRight,
+            child: _buildDateHistoryButton(),
+          ),
+          const SizedBox(height: 6),
+          Padding(
+            padding: const EdgeInsets.only(left: 6, top: 4),
+            child: _buildDaysStrip(),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildProgressBlock() {
+    return Column(
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            const Text("Your Progress", style: _sectionTitleStyle),
+            GestureDetector(
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const MealHistoryScreen()),
+                );
+              },
+              child: const Row(
+                children: [
+                  Text(
+                    "Details",
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      color: AppColors.navy,
+                    ),
+                  ),
+                  SizedBox(width: 4),
+                  Icon(
+                    Icons.arrow_forward_rounded,
+                    size: 16,
+                    color: AppColors.navy,
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 12),
+        buildCaloriesCard(),
+      ],
+    );
+  }
+
+  Widget _buildWaterBlock() {
+    return Column(
+      children: [
+        const Align(
+          alignment: Alignment.centerLeft,
+          child: Text('water', style: _sectionTitleStyle),
+        ),
+        const SizedBox(height: 12),
+        _buildWaterCard(),
+        const SizedBox(height: 20),
+        _buildWaterHintBox(),
+      ],
+    );
+  }
+
+  Widget _buildMobileHomeContent(String userName, String? userImageUrl) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 20, 20, 0),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _buildHomeHeader(userName, userImageUrl, false),
+          const SizedBox(height: 24),
+          Expanded(
+            child: RefreshIndicator(
+              onRefresh: _onRefresh,
+              color: AppColors.deepBlue,
+              child: SingleChildScrollView(
+                physics: const AlwaysScrollableScrollPhysics(),
+                child: Column(
+                  children: [
+                    _buildDateStripBlock(isWeb: false),
+                    const SizedBox(height: 22),
+                    _buildProgressBlock(),
+                    const SizedBox(height: 24),
+                    _buildMealsSection(),
+                    const SizedBox(height: 24),
+                    _buildWaterBlock(),
+                    const SizedBox(height: 50),
+                    const SizedBox(height: 100),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildWebHomeContent(String userName, String? userImageUrl) {
+    return Center(
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 1280),
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(32, 28, 32, 0),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _buildHomeHeader(userName, userImageUrl, true),
+              const SizedBox(height: 24),
+              Expanded(
+                child: RefreshIndicator(
+                  onRefresh: _onRefresh,
+                  color: AppColors.deepBlue,
+                  child: SingleChildScrollView(
+                    physics: const AlwaysScrollableScrollPhysics(),
+                    child: Column(
+                      children: [
+                        _buildDateStripBlock(isWeb: true),
+                        const SizedBox(height: 22),
+                        Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Expanded(
+                              flex: 6,
+                              child: Column(
+                                children: [
+                                  _buildProgressBlock(),
+                                  const SizedBox(height: 24),
+                                  _buildMealsSection(),
+                                ],
+                              ),
+                            ),
+                            const SizedBox(width: 24),
+                            Expanded(flex: 5, child: _buildWaterBlock()),
+                          ],
+                        ),
+                        const SizedBox(height: 120),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     context.watch<UserProvider>();
@@ -2258,204 +2505,29 @@ class _HomeScreenState extends State<HomeScreen>
     final userName = user?["name"] ?? "User";
     final userImageUrl = _extractUserImageUrl();
 
-    return Scaffold(
-      key: _scaffoldKey,
-      extendBody: true,
+    final isWeb = _isWebLayout(context);
+
+    return CustomResponsiveNavShell(
+      currentIndex: 0,
+      selectedDate: _selectedDate,
+      dailyCalories: dailyCalories,
+      goal: user?["profile"]?["goal"]?.toString(),
+      mealConsumedCalories: _homeProvider.mealConsumedCalories,
+      consumedWaterMl: consumedWaterMl,
+      dailyWaterGoalMl: dailyWaterGoalMl,
+      onAddWaterTap: _addWaterBy,
+      scaffoldKey: _scaffoldKey,
       backgroundColor: AppColors.background,
       endDrawer: AppDrawer(
         user: user,
         onProfileTap: _goToProfile,
         onLogoutTap: _logout,
       ),
-      body: SafeArea(
-        bottom: false,
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(20, 20, 20, 0),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  InkWell(
-                    onTap: _goToProfile,
-                    borderRadius: BorderRadius.circular(32),
-                    child: Container(
-                      padding: const EdgeInsets.all(2.5),
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        border: Border.all(color: AppColors.navy, width: 2.2),
-                      ),
-                      child: CircleAvatar(
-                        radius: 24,
-                        backgroundColor: AppColors.babyBlueLight,
-                        backgroundImage: userImageUrl != null
-                            ? NetworkImage(userImageUrl)
-                            : null,
-                        child: userImageUrl == null
-                            ? Text(
-                                getInitials(userName),
-                                style: const TextStyle(
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.bold,
-                                  color: AppColors.deepBlue,
-                                ),
-                              )
-                            : null,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          greeting(),
-                          style: const TextStyle(
-                            fontSize: 13,
-                            color: AppColors.blueGray,
-                          ),
-                        ),
-                        const SizedBox(height: 2),
-                        Text(
-                          userName,
-                          style: const TextStyle(
-                            fontSize: 19,
-                            fontWeight: FontWeight.w800,
-                            color: AppColors.deepBlue,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  _buildStreakFireBadge(),
-                  const SizedBox(width: 8),
-                  Container(
-                    decoration: BoxDecoration(
-                      color: AppColors.white,
-                      borderRadius: BorderRadius.circular(16),
-                      boxShadow: [
-                        BoxShadow(
-                          color: AppColors.navy.withValues(alpha: 0.04),
-                          blurRadius: 10,
-                          offset: const Offset(0, 4),
-                        ),
-                      ],
-                    ),
-                    child: IconButton(
-                      onPressed: () {
-                        _scaffoldKey.currentState?.openEndDrawer();
-                      },
-                      icon: const Icon(
-                        Icons.menu_rounded,
-                        color: AppColors.deepBlue,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 24),
-              Expanded(
-                child: RefreshIndicator(
-                  onRefresh: _onRefresh,
-                  color: AppColors.deepBlue,
-                  child: SingleChildScrollView(
-                    physics: const AlwaysScrollableScrollPhysics(),
-                    child: Column(
-                      children: [
-                        SizedBox(
-                          width: double.infinity,
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.stretch,
-                            children: [
-                              Align(
-                                alignment: Alignment.centerRight,
-                                child: _buildDateHistoryButton(),
-                              ),
-                              const SizedBox(height: 6),
-                              Padding(
-                                padding: const EdgeInsets.only(left: 6, top: 4),
-                                child: _buildDaysStrip(),
-                              ),
-                            ],
-                          ),
-                        ),
-                        const SizedBox(height: 22),
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            const Text(
-                              "Your Progress",
-                              style: _sectionTitleStyle,
-                            ),
-                            GestureDetector(
-                              onTap: () {
-                                Navigator.push(
-                                  context,
-                                  MaterialPageRoute(
-                                    builder: (_) => const MealHistoryScreen(),
-                                  ),
-                                );
-                              },
-                              child: Row(
-                                children: [
-                                  const Text(
-                                    "Details",
-                                    style: TextStyle(
-                                      fontSize: 13,
-                                      fontWeight: FontWeight.w600,
-                                      color: AppColors.navy,
-                                    ),
-                                  ),
-                                  const SizedBox(width: 4),
-                                  const Icon(
-                                    Icons.arrow_forward_rounded,
-                                    size: 16,
-                                    color: AppColors.navy,
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 12),
-                        buildCaloriesCard(),
-                        const SizedBox(height: 24),
-                        _buildMealsSection(),
-                        const SizedBox(height: 24),
-                        const Align(
-                          alignment: Alignment.centerLeft,
-                          child: Text('water', style: _sectionTitleStyle),
-                        ),
-                        const SizedBox(height: 12),
-                        _buildWaterCard(),
-                        const SizedBox(height: 20),
-                        _buildWaterHintBox(),
-                        const SizedBox(height: 50),
-
-                        const SizedBox(height: 100),
-                      ],
-                    ),
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
+      child: isWeb
+          ? _buildWebHomeContent(userName, userImageUrl)
+          : _buildMobileHomeContent(userName, userImageUrl),
       floatingActionButton: _buildChatPlaceholderButton(),
       floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
-      bottomNavigationBar: CustomBottomNav(
-        currentIndex: 0,
-        selectedDate: _selectedDate,
-        dailyCalories: dailyCalories,
-        goal: user?["profile"]?["goal"]?.toString(),
-        mealConsumedCalories: _homeProvider.mealConsumedCalories,
-        consumedWaterMl: consumedWaterMl,
-        dailyWaterGoalMl: dailyWaterGoalMl,
-        onAddWaterTap: _addWaterBy,
-      ),
     );
   }
 }

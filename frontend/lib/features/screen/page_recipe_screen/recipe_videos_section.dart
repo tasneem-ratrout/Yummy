@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -9,10 +10,7 @@ import '../../../models/youtube_video_model.dart';
 class RecipeVideosSection extends StatefulWidget {
   final String searchText;
 
-  const RecipeVideosSection({
-    super.key,
-    required this.searchText,
-  });
+  const RecipeVideosSection({super.key, required this.searchText});
 
   @override
   State<RecipeVideosSection> createState() => _RecipeVideosSectionState();
@@ -95,6 +93,13 @@ class _RecipeVideosSectionState extends State<RecipeVideosSection> {
     });
   }
 
+  int _webColumns(double width) {
+    if (width >= 1400) return 4;
+    if (width >= 1050) return 3;
+    if (width >= 720) return 2;
+    return 1;
+  }
+
   @override
   Widget build(BuildContext context) {
     if (_isLoading) {
@@ -124,14 +129,42 @@ class _RecipeVideosSectionState extends State<RecipeVideosSection> {
         onRefresh: _loadVideos,
         color: primaryBlue,
         backgroundColor: Colors.white,
-        child: ListView.separated(
-          physics: const AlwaysScrollableScrollPhysics(),
-          padding: const EdgeInsets.fromLTRB(16, 12, 16, 110),
-          itemCount: filteredVideos.length,
-          separatorBuilder: (_, __) => const SizedBox(height: 16),
-          itemBuilder: (context, index) {
-            final video = filteredVideos[index];
-            return _buildVideoCard(video);
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            if (!kIsWeb) {
+              return ListView.separated(
+                physics: const AlwaysScrollableScrollPhysics(),
+                padding: const EdgeInsets.fromLTRB(16, 12, 16, 110),
+                itemCount: filteredVideos.length,
+                separatorBuilder: (_, __) => const SizedBox(height: 16),
+                itemBuilder: (context, index) {
+                  final video = filteredVideos[index];
+                  return _buildVideoCard(video);
+                },
+              );
+            }
+
+            final columns = _webColumns(constraints.maxWidth);
+            return Center(
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 1280),
+                child: GridView.builder(
+                  physics: const AlwaysScrollableScrollPhysics(),
+                  padding: const EdgeInsets.fromLTRB(32, 24, 32, 120),
+                  itemCount: filteredVideos.length,
+                  gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                    crossAxisCount: columns,
+                    crossAxisSpacing: 24,
+                    mainAxisSpacing: 24,
+                    childAspectRatio: 1.02,
+                  ),
+                  itemBuilder: (context, index) {
+                    final video = filteredVideos[index];
+                    return _buildVideoCard(video);
+                  },
+                ),
+              ),
+            );
           },
         ),
       ),
@@ -150,10 +183,7 @@ class _RecipeVideosSectionState extends State<RecipeVideosSection> {
           decoration: BoxDecoration(
             color: Colors.white,
             borderRadius: BorderRadius.circular(26),
-            border: Border.all(
-              color: borderBlue,
-              width: 1,
-            ),
+            border: Border.all(color: borderBlue, width: 1),
             boxShadow: [
               BoxShadow(
                 color: primaryBlue.withOpacity(0.08),
@@ -178,9 +208,7 @@ class _RecipeVideosSectionState extends State<RecipeVideosSection> {
     return Stack(
       children: [
         ClipRRect(
-          borderRadius: const BorderRadius.vertical(
-            top: Radius.circular(26),
-          ),
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(26)),
           child: CachedNetworkImage(
             imageUrl: video.thumbnailUrl,
             height: 205,
@@ -258,10 +286,7 @@ class _RecipeVideosSectionState extends State<RecipeVideosSection> {
             right: 14,
             bottom: 18,
             child: Container(
-              padding: const EdgeInsets.symmetric(
-                horizontal: 11,
-                vertical: 6,
-              ),
+              padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 6),
               decoration: BoxDecoration(
                 color: Colors.black.withOpacity(0.72),
                 borderRadius: BorderRadius.circular(999),
@@ -418,15 +443,9 @@ class _RecipeVideosSectionState extends State<RecipeVideosSection> {
 
     try {
       if (await canLaunchUrl(youtubeAppUrl)) {
-        await launchUrl(
-          youtubeAppUrl,
-          mode: LaunchMode.externalApplication,
-        );
+        await launchUrl(youtubeAppUrl, mode: LaunchMode.externalApplication);
       } else {
-        await launchUrl(
-          youtubeWebUrl,
-          mode: LaunchMode.externalApplication,
-        );
+        await launchUrl(youtubeWebUrl, mode: LaunchMode.externalApplication);
       }
     } catch (e) {
       debugPrint("Could not launch video: $e");
@@ -629,9 +648,7 @@ class _RecipeVideosSectionState extends State<RecipeVideosSection> {
                   icon: const Icon(Icons.refresh_rounded, size: 18),
                   label: const Text(
                     "Try again",
-                    style: TextStyle(
-                      fontWeight: FontWeight.w800,
-                    ),
+                    style: TextStyle(fontWeight: FontWeight.w800),
                   ),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: primaryBlue,

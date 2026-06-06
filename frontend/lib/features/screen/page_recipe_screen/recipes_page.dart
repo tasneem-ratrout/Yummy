@@ -1042,12 +1042,10 @@ class _RecipesPageState extends State<RecipesPage>
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
+    return CustomResponsiveNavShell(
+      currentIndex: 3,
       backgroundColor: const Color(0xffF4F8FD),
-
-      bottomNavigationBar: const CustomBottomNav(currentIndex: 3),
-
-      body: SafeArea(
+      child: SafeArea(
         child: LayoutBuilder(
           builder: (context, constraints) {
             // للشاشات الكبيرة: عرض الفلتر على الجانب

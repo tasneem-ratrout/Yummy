@@ -116,24 +116,24 @@ class _AdminOrdersPageState extends State<AdminOrdersPage>
       );
 
       if (response.statusCode == 200) {
-       final decoded = jsonDecode(response.body);
+        final decoded = jsonDecode(response.body);
 
-List rawList = [];
+        List rawList = [];
 
-if (decoded is Map && decoded['orders'] is List) {
-  rawList = decoded['orders'];
-} else if (decoded is Map && decoded['data'] is List) {
-  rawList = decoded['data'];
-}
+        if (decoded is Map && decoded['orders'] is List) {
+          rawList = decoded['orders'];
+        } else if (decoded is Map && decoded['data'] is List) {
+          rawList = decoded['data'];
+        }
 
-setState(() {
-  _orders = rawList
-      .whereType<Map>()
-      .map((e) => Map<String, dynamic>.from(e))
-      .toList();
+        setState(() {
+          _orders = rawList
+              .whereType<Map>()
+              .map((e) => Map<String, dynamic>.from(e))
+              .toList();
 
-  _loading = false;
-});
+          _loading = false;
+        });
       } else {
         throw Exception('Failed to load orders');
       }
@@ -179,39 +179,35 @@ setState(() {
   }
 
   List<dynamic> get _filteredOrders {
-  return _orders.where((order) {
-    if (order is! Map) return false;
+    return _orders.where((order) {
+      if (order is! Map) return false;
 
-    final status = (order['status'] ?? '').toString().toLowerCase();
+      final status = (order['status'] ?? '').toString().toLowerCase();
 
-    final chef = order['chefId'];
-    final user = order['userId'];
+      final chef = order['chefId'];
+      final user = order['userId'];
 
-    final chefName = (chef is Map)
-        ? (chef['businessName'] ?? chef['name'] ?? '')
-            .toString()
-            .toLowerCase()
-        : '';
+      final chefName = (chef is Map)
+          ? (chef['businessName'] ?? chef['name'] ?? '')
+                .toString()
+                .toLowerCase()
+          : '';
 
-    final userName = (user is Map)
-        ? (user['name'] ?? '')
-            .toString()
-            .toLowerCase()
-        : (order['customerName'] ?? '')
-            .toString()
-            .toLowerCase();
+      final userName = (user is Map)
+          ? (user['name'] ?? '').toString().toLowerCase()
+          : (order['customerName'] ?? '').toString().toLowerCase();
 
-    final orderId = (order['_id'] ?? '').toString().toLowerCase();
-    final query = _searchQuery.toLowerCase();
+      final orderId = (order['_id'] ?? '').toString().toLowerCase();
+      final query = _searchQuery.toLowerCase();
 
-    final matchesSearch =
-        chefName.contains(query) ||
-        userName.contains(query) ||
-        orderId.contains(query);
+      final matchesSearch =
+          chefName.contains(query) ||
+          userName.contains(query) ||
+          orderId.contains(query);
 
-    return status == _selectedTab && matchesSearch;
-  }).toList();
-}
+      return status == _selectedTab && matchesSearch;
+    }).toList();
+  }
 
   String _formatDate(String? dateString) {
     if (dateString == null) return 'N/A';
@@ -257,69 +253,85 @@ setState(() {
         return status;
     }
   }
-@override
-Widget build(BuildContext context) {
-  return Scaffold(
-    backgroundColor: const Color(0xFFF8F9FA),
-    body: SafeArea(
-      child: Column(
-        children: [
-          const SizedBox(height: 14),
 
-          // SEARCH
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16),
-            child: TextField(
-              onChanged: (value) {
-                setState(() {
-                  _searchQuery = value;
-                });
-              },
-              decoration: InputDecoration(
-                hintText: 'Search customer, chef or order id',
-                prefixIcon: const Icon(Icons.search),
-                filled: true,
-                fillColor: Colors.white,
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(18),
-                  borderSide: BorderSide.none,
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: const Color(0xFFF8F9FA),
+      body: SafeArea(
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            final isWeb = constraints.maxWidth >= 900;
+            final pagePadding = isWeb ? 24.0 : 16.0;
+            final maxWidth = isWeb ? 1500.0 : double.infinity;
+
+            return Center(
+              child: ConstrainedBox(
+                constraints: BoxConstraints(maxWidth: maxWidth),
+                child: Column(
+                  children: [
+                    SizedBox(height: isWeb ? 24 : 14),
+
+                    // SEARCH
+                    Padding(
+                      padding: EdgeInsets.symmetric(horizontal: pagePadding),
+                      child: TextField(
+                        onChanged: (value) {
+                          setState(() {
+                            _searchQuery = value;
+                          });
+                        },
+                        decoration: InputDecoration(
+                          hintText: 'Search customer, chef or order id',
+                          prefixIcon: const Icon(Icons.search),
+                          filled: true,
+                          fillColor: Colors.white,
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(18),
+                            borderSide: BorderSide.none,
+                          ),
+                        ),
+                      ),
+                    ),
+
+                    _buildTabs(),
+
+                    Expanded(
+                      child: Builder(
+                        builder: (context) {
+                          try {
+                            if (_loading) return _buildLoadingShimmer();
+
+                            if (_error.isNotEmpty) return _buildErrorWidget();
+
+                            if (_filteredOrders.isEmpty) {
+                              return _buildEmptyWidget();
+                            }
+
+                            return RefreshIndicator(
+                              onRefresh: _loadOrders,
+                              child: _buildOrdersList(),
+                            );
+                          } catch (e) {
+                            return const Center(
+                              child: Text(
+                                'Something went wrong',
+                                style: TextStyle(color: Colors.red),
+                              ),
+                            );
+                          }
+                        },
+                      ),
+                    ),
+                  ],
                 ),
               ),
-            ),
-          ),
-
-          _buildTabs(),
-
-          Expanded(
-            child: Builder(
-              builder: (context) {
-                try {
-                  if (_loading) return _buildLoadingShimmer();
-
-                  if (_error.isNotEmpty) return _buildErrorWidget();
-
-                  if (_filteredOrders.isEmpty) return _buildEmptyWidget();
-
-                  return RefreshIndicator(
-                    onRefresh: _loadOrders,
-                    child: _buildOrdersList(),
-                  );
-                } catch (e) {
-                  return Center(
-                    child: Text(
-                      'Something went wrong',
-                      style: const TextStyle(color: Colors.red),
-                    ),
-                  );
-                }
-              },
-            ),
-          ),
-        ],
+            );
+          },
+        ),
       ),
-    ),
-  );
-}
+    );
+  }
 
   /// Fixed Tabs - Without overflow issues
   Widget _buildTabs() {
@@ -358,121 +370,188 @@ Widget build(BuildContext context) {
       },
     ];
 
-    return Container(
-      margin: const EdgeInsets.all(16),
-      height: 95,
-      child: ListView.separated(
-        scrollDirection: Axis.horizontal,
-        itemCount: tabs.length,
-        separatorBuilder: (_, __) => const SizedBox(width: 10),
-        itemBuilder: (context, index) {
-          final tab = tabs[index];
-          final isSelected = _selectedTab == tab['key'];
-          final count = tab['count'] as int;
+    Widget tabCard(Map<String, Object> tab, {double? width}) {
+      final isSelected = _selectedTab == tab['key'];
+      final count = tab['count'] as int;
 
-          return GestureDetector(
-            onTap: () {
-              setState(() {
-                _selectedTab = tab['key'] as String;
-              });
-            },
-            child: AnimatedContainer(
-              duration: const Duration(milliseconds: 250),
-              width: 105,
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
-              decoration: BoxDecoration(
-                gradient: isSelected
-                    ? const LinearGradient(
-                        colors: [AppColors.royalBlue, AppColors.mediumBlue],
-                      )
-                    : null,
-                color: isSelected ? null : Colors.white,
-                borderRadius: BorderRadius.circular(20),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withOpacity(.05),
-                    blurRadius: 10,
-                    offset: const Offset(0, 4),
-                  ),
-                ],
+      return GestureDetector(
+        onTap: () {
+          setState(() {
+            _selectedTab = tab['key'] as String;
+          });
+        },
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 250),
+          width: width ?? 105,
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+          decoration: BoxDecoration(
+            gradient: isSelected
+                ? const LinearGradient(
+                    colors: [AppColors.royalBlue, AppColors.mediumBlue],
+                  )
+                : null,
+            color: isSelected ? null : Colors.white,
+            borderRadius: BorderRadius.circular(20),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(.05),
+                blurRadius: 10,
+                offset: const Offset(0, 4),
               ),
-              child: SingleChildScrollView(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  crossAxisAlignment: CrossAxisAlignment.center,
-                  children: [
-                    Icon(
-                      tab['icon'] as IconData,
-                      size: 22,
-                      color: isSelected ? Colors.white : AppColors.royalBlue,
-                    ),
-                    const SizedBox(height: 5),
-                    Text(
-                      tab['label'] as String,
-                      style: TextStyle(
-                        fontSize: 11,
-                        fontWeight: FontWeight.bold,
-                        color: isSelected ? Colors.white : AppColors.deepBlue,
-                      ),
-                      textAlign: TextAlign.center,
-                    ),
-                    const SizedBox(height: 3),
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 6,
-                        vertical: 2,
-                      ),
-                      decoration: BoxDecoration(
-                        color: isSelected
-                            ? Colors.white.withOpacity(.2)
-                            : AppColors.royalBlue.withOpacity(.1),
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                      child: Text(
-                        '$count',
-                        style: TextStyle(
-                          fontSize: 9,
-                          fontWeight: FontWeight.bold,
-                          color: isSelected
-                              ? Colors.white
-                              : AppColors.royalBlue,
-                        ),
-                      ),
-                    ),
-                  ],
+            ],
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            mainAxisAlignment: MainAxisAlignment.center,
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              Icon(
+                tab['icon'] as IconData,
+                size: 22,
+                color: isSelected ? Colors.white : AppColors.royalBlue,
+              ),
+              const SizedBox(height: 5),
+              Text(
+                tab['label'] as String,
+                style: TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.bold,
+                  color: isSelected ? Colors.white : AppColors.deepBlue,
+                ),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 3),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                decoration: BoxDecoration(
+                  color: isSelected
+                      ? Colors.white.withOpacity(.2)
+                      : AppColors.royalBlue.withOpacity(.1),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Text(
+                  '$count',
+                  style: TextStyle(
+                    fontSize: 9,
+                    fontWeight: FontWeight.bold,
+                    color: isSelected ? Colors.white : AppColors.royalBlue,
+                  ),
                 ),
               ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final isWeb = constraints.maxWidth >= 900;
+
+        if (isWeb) {
+          return Container(
+            margin: const EdgeInsets.all(24),
+            child: Row(
+              children: tabs
+                  .map(
+                    (tab) => Expanded(
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 6),
+                        child: tabCard(tab, width: double.infinity),
+                      ),
+                    ),
+                  )
+                  .toList(),
             ),
           );
-        },
-      ),
+        }
+
+        return Container(
+          margin: const EdgeInsets.all(16),
+          height: 95,
+          child: ListView.separated(
+            scrollDirection: Axis.horizontal,
+            itemCount: tabs.length,
+            separatorBuilder: (_, __) => const SizedBox(width: 10),
+            itemBuilder: (context, index) => tabCard(tabs[index]),
+          ),
+        );
+      },
     );
   }
 
   Widget _buildOrdersList() {
-    return ListView.builder(
-      padding: const EdgeInsets.symmetric(horizontal: 16),
-      physics: const BouncingScrollPhysics(),
-      itemCount: _filteredOrders.length,
-      itemBuilder: (context, index) {
-        final order = _filteredOrders[index];
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final isWeb = constraints.maxWidth >= 900;
+        final crossAxisCount = constraints.maxWidth >= 1300 ? 3 : 2;
 
-        return FadeTransition(
-          opacity: _fadeAnimation,
-          child: SlideTransition(
-            position:
-                Tween<Offset>(
-                  begin: const Offset(0.1, 0),
-                  end: Offset.zero,
-                ).animate(
-                  CurvedAnimation(
-                    parent: _animationController,
-                    curve: Interval(index * 0.05, 1.0, curve: Curves.easeOut),
-                  ),
+        if (isWeb) {
+          return GridView.builder(
+            padding: const EdgeInsets.fromLTRB(24, 0, 24, 28),
+            physics: const BouncingScrollPhysics(),
+            itemCount: _filteredOrders.length,
+            gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+              crossAxisCount: crossAxisCount,
+              crossAxisSpacing: 18,
+              mainAxisSpacing: 18,
+              childAspectRatio: 0.78,
+            ),
+            itemBuilder: (context, index) {
+              final order = _filteredOrders[index];
+
+              return FadeTransition(
+                opacity: _fadeAnimation,
+                child: SlideTransition(
+                  position:
+                      Tween<Offset>(
+                        begin: const Offset(0.1, 0),
+                        end: Offset.zero,
+                      ).animate(
+                        CurvedAnimation(
+                          parent: _animationController,
+                          curve: Interval(
+                            (index * 0.05).clamp(0.0, 0.9),
+                            1.0,
+                            curve: Curves.easeOut,
+                          ),
+                        ),
+                      ),
+                  child: _buildOrderCard(order),
                 ),
-            child: _buildOrderCard(order),
-          ),
+              );
+            },
+          );
+        }
+
+        return ListView.builder(
+          padding: const EdgeInsets.symmetric(horizontal: 16),
+          physics: const BouncingScrollPhysics(),
+          itemCount: _filteredOrders.length,
+          itemBuilder: (context, index) {
+            final order = _filteredOrders[index];
+
+            return FadeTransition(
+              opacity: _fadeAnimation,
+              child: SlideTransition(
+                position:
+                    Tween<Offset>(
+                      begin: const Offset(0.1, 0),
+                      end: Offset.zero,
+                    ).animate(
+                      CurvedAnimation(
+                        parent: _animationController,
+                        curve: Interval(
+                          (index * 0.05).clamp(0.0, 0.9),
+                          1.0,
+                          curve: Curves.easeOut,
+                        ),
+                      ),
+                    ),
+                child: _buildOrderCard(order),
+              ),
+            );
+          },
         );
       },
     );
@@ -480,15 +559,15 @@ Widget build(BuildContext context) {
 
   Widget _buildOrderCard(dynamic order) {
     final chef = order['chefId'];
-final user = order['userId'];
+    final user = order['userId'];
 
-final chefName = (chef is Map)
-    ? (chef['businessName'] ?? chef['name'] ?? 'Unknown Chef')
-    : 'Unknown Chef';
+    final chefName = (chef is Map)
+        ? (chef['businessName'] ?? chef['name'] ?? 'Unknown Chef')
+        : 'Unknown Chef';
 
-final userName = (user is Map)
-    ? (user['name'] ?? 'Unknown User')
-    : (order['customerName'] ?? 'Unknown User');
+    final userName = (user is Map)
+        ? (user['name'] ?? 'Unknown User')
+        : (order['customerName'] ?? 'Unknown User');
     final dishName = order['dishName'] ?? '';
     final quantity = order['quantity'] ?? 1;
     final singlePrice = (order['price'] ?? 0).toDouble();
@@ -780,6 +859,23 @@ final userName = (user is Map)
   }
 
   void _showOrderDetails(dynamic order) {
+    final isWeb = MediaQuery.of(context).size.width >= 900;
+
+    if (isWeb) {
+      showDialog(
+        context: context,
+        builder: (context) => Dialog(
+          backgroundColor: Colors.transparent,
+          insetPadding: const EdgeInsets.all(28),
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 620),
+            child: _OrderDetailsSheet(order: order),
+          ),
+        ),
+      );
+      return;
+    }
+
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,

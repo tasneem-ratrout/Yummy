@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'dart:math' as math;
 import 'package:lottie/lottie.dart';
@@ -363,213 +364,250 @@ class _SignUpFlowScreenState extends State<SignUpFlowScreen> {
     }
   }
 
+  bool _isWebLayout(BuildContext context) {
+    return kIsWeb && MediaQuery.of(context).size.width >= 900;
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       resizeToAvoidBottomInset: true,
       body: AppBackground(
         child: SafeArea(
-          child: Column(
-            children: [
-              Padding(
-                padding: const EdgeInsets.fromLTRB(16, 14, 16, 8),
-                child: Row(
-                  children: [
-                    AppBackButton(onTap: _back),
-                    const Spacer(),
-                    InkWell(
-                      borderRadius: BorderRadius.circular(999),
-                      onTap: _skip,
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 16,
-                          vertical: 10,
-                        ),
-                        decoration: BoxDecoration(
-                          color: AppColors.white,
-                          borderRadius: BorderRadius.circular(999),
-                          border: Border.all(
-                            color: AppColors.dark.withOpacity(0.08),
-                          ),
-                        ),
-                        child: const Text(
-                          "Skip",
-                          style: TextStyle(
-                            color: AppColors.navy,
-                            fontWeight: FontWeight.w800,
-                          ),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
+          child: Center(
+            child: ConstrainedBox(
+              constraints: BoxConstraints(
+                maxWidth: _isWebLayout(context) ? 720 : double.infinity,
               ),
-              const SizedBox(height: 8),
-              Expanded(
-                child: PageView(
-                  controller: _pageController,
-                  physics: const NeverScrollableScrollPhysics(),
-                  children: [
-                    _StepScaffold(child: _NameStep(nameCtrl: _nameCtrl)),
-                    _StepScaffold(
-                      child: _GoalStep(
-                        selectedGoal: _selectedGoal,
-                        onSelected: (value) {
-                          setState(() => _selectedGoal = value);
-                        },
-                      ),
-                    ),
-                    _StepScaffold(
-                      child: _GenderStep(
-                        selectedGender: _gender,
-                        onSelected: (value) {
-                          setState(() => _gender = value);
-                        },
-                      ),
-                    ),
-                    _StepScaffold(
-                      child: _BirthStep(
-                        selectedAge: _selectedAge,
-                        selectedBirthDate: _selectedBirthDate,
-                        onTapPickDate: _pickBirthDate,
-                      ),
-                    ),
-                    _StepScaffold(
-                      child: _HeightStep(
-                        selectedHeight: _selectedHeight,
-                        heightValues: _heightValues,
-                        controller: _heightController,
-                        onHeightChanged: (value) {
-                          setState(() => _selectedHeight = value);
-                        },
-                      ),
-                    ),
-                    _StepScaffold(
-                      child: _WeightStep(
-                        selectedWeight: _selectedWeight,
-                        onWeightChanged: (value) {
-                          setState(() => _selectedWeight = value);
-                        },
-                      ),
-                    ),
-                    _StepScaffold(
-                      child: _ActivityStep(
-                        selectedActivity: _selectedActivity,
-                        onSelected: (value) {
-                          setState(() => _selectedActivity = value);
-                        },
-                      ),
-                    ),
-                    _StepScaffold(
-                      child: _AllergiesStep(
-                        selectedAllergies: _selectedAllergies,
-                        onToggle: (value) {
-                          setState(() {
-                            if (value == "None") {
-                              if (_selectedAllergies.contains("None")) {
-                                _selectedAllergies.remove("None");
-                              } else {
-                                _selectedAllergies = ["None"];
-                              }
-                            } else {
-                              _selectedAllergies.remove("None");
-
-                              if (_selectedAllergies.contains(value)) {
-                                _selectedAllergies.remove(value);
-                              } else {
-                                _selectedAllergies.add(value);
-                              }
-                            }
-                          });
-                        },
-                      ),
-                    ),
-                    _StepScaffold(
-                      child: _ConditionsStep(
-                        selectedConditions: _selectedConditions,
-                        onToggle: (value) {
-                          setState(() {
-                            if (value == "None") {
-                              if (_selectedConditions.contains("None")) {
-                                _selectedConditions.remove("None");
-                              } else {
-                                _selectedConditions = ["None"];
-                              }
-                            } else {
-                              _selectedConditions.remove("None");
-
-                              if (_selectedConditions.contains(value)) {
-                                _selectedConditions.remove(value);
-                              } else {
-                                _selectedConditions.add(value);
-                              }
-                            }
-                          });
-                        },
-                      ),
-                    ),
-                  ],
+              child: Container(
+                margin: EdgeInsets.symmetric(
+                  vertical: _isWebLayout(context) ? 24 : 0,
                 ),
-              ),
-              Padding(
-                padding: const EdgeInsets.only(bottom: 18),
-                child: GestureDetector(
-                  onTap: _saving ? null : _next,
-                  child: SizedBox(
-                    width: 82,
-                    height: 82,
-                    child: Stack(
-                      alignment: Alignment.center,
-                      children: [
-                        TweenAnimationBuilder<double>(
-                          tween: Tween<double>(begin: 0, end: _progressValue),
-                          duration: const Duration(milliseconds: 350),
-                          curve: Curves.easeInOut,
-                          builder: (context, value, child) {
-                            return SizedBox(
-                              width: 82,
-                              height: 82,
-                              child: CircularProgressIndicator(
-                                value: value,
-                                strokeWidth: 3.4,
-                                backgroundColor: AppColors.mediumBlue
-                                    .withOpacity(0.18),
-                                valueColor: const AlwaysStoppedAnimation<Color>(
-                                  AppColors.mediumBlue,
+                padding: EdgeInsets.symmetric(
+                  horizontal: _isWebLayout(context) ? 18 : 0,
+                ),
+                decoration: _isWebLayout(context)
+                    ? BoxDecoration(
+                        color: Colors.white.withOpacity(0.55),
+                        borderRadius: BorderRadius.circular(32),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withOpacity(0.07),
+                            blurRadius: 30,
+                            offset: const Offset(0, 12),
+                          ),
+                        ],
+                      )
+                    : null,
+                child: Column(
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(16, 14, 16, 8),
+                      child: Row(
+                        children: [
+                          AppBackButton(onTap: _back),
+                          const Spacer(),
+                          InkWell(
+                            borderRadius: BorderRadius.circular(999),
+                            onTap: _skip,
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 16,
+                                vertical: 10,
+                              ),
+                              decoration: BoxDecoration(
+                                color: AppColors.white,
+                                borderRadius: BorderRadius.circular(999),
+                                border: Border.all(
+                                  color: AppColors.dark.withOpacity(0.08),
                                 ),
                               ),
-                            );
-                          },
-                        ),
-                        Container(
-                          width: 58,
-                          height: 58,
-                          decoration: const BoxDecoration(
-                            shape: BoxShape.circle,
-                            color: AppColors.deepBlue,
-                          ),
-                          child: _saving
-                              ? const Padding(
-                                  padding: EdgeInsets.all(16),
-                                  child: CircularProgressIndicator(
-                                    strokeWidth: 2.5,
-                                    valueColor: AlwaysStoppedAnimation<Color>(
-                                      Colors.white,
-                                    ),
-                                  ),
-                                )
-                              : const Icon(
-                                  Icons.arrow_forward_rounded,
-                                  color: Colors.white,
-                                  size: 26,
+                              child: const Text(
+                                "Skip",
+                                style: TextStyle(
+                                  color: AppColors.navy,
+                                  fontWeight: FontWeight.w800,
                                 ),
-                        ),
-                      ],
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
-                  ),
+                    const SizedBox(height: 8),
+                    Expanded(
+                      child: PageView(
+                        controller: _pageController,
+                        physics: const NeverScrollableScrollPhysics(),
+                        children: [
+                          _StepScaffold(child: _NameStep(nameCtrl: _nameCtrl)),
+                          _StepScaffold(
+                            child: _GoalStep(
+                              selectedGoal: _selectedGoal,
+                              onSelected: (value) {
+                                setState(() => _selectedGoal = value);
+                              },
+                            ),
+                          ),
+                          _StepScaffold(
+                            child: _GenderStep(
+                              selectedGender: _gender,
+                              onSelected: (value) {
+                                setState(() => _gender = value);
+                              },
+                            ),
+                          ),
+                          _StepScaffold(
+                            child: _BirthStep(
+                              selectedAge: _selectedAge,
+                              selectedBirthDate: _selectedBirthDate,
+                              onTapPickDate: _pickBirthDate,
+                            ),
+                          ),
+                          _StepScaffold(
+                            child: _HeightStep(
+                              selectedHeight: _selectedHeight,
+                              heightValues: _heightValues,
+                              controller: _heightController,
+                              onHeightChanged: (value) {
+                                setState(() => _selectedHeight = value);
+                              },
+                            ),
+                          ),
+                          _StepScaffold(
+                            child: _WeightStep(
+                              selectedWeight: _selectedWeight,
+                              onWeightChanged: (value) {
+                                setState(() => _selectedWeight = value);
+                              },
+                            ),
+                          ),
+                          _StepScaffold(
+                            child: _ActivityStep(
+                              selectedActivity: _selectedActivity,
+                              onSelected: (value) {
+                                setState(() => _selectedActivity = value);
+                              },
+                            ),
+                          ),
+                          _StepScaffold(
+                            child: _AllergiesStep(
+                              selectedAllergies: _selectedAllergies,
+                              onToggle: (value) {
+                                setState(() {
+                                  if (value == "None") {
+                                    if (_selectedAllergies.contains("None")) {
+                                      _selectedAllergies.remove("None");
+                                    } else {
+                                      _selectedAllergies = ["None"];
+                                    }
+                                  } else {
+                                    _selectedAllergies.remove("None");
+
+                                    if (_selectedAllergies.contains(value)) {
+                                      _selectedAllergies.remove(value);
+                                    } else {
+                                      _selectedAllergies.add(value);
+                                    }
+                                  }
+                                });
+                              },
+                            ),
+                          ),
+                          _StepScaffold(
+                            child: _ConditionsStep(
+                              selectedConditions: _selectedConditions,
+                              onToggle: (value) {
+                                setState(() {
+                                  if (value == "None") {
+                                    if (_selectedConditions.contains("None")) {
+                                      _selectedConditions.remove("None");
+                                    } else {
+                                      _selectedConditions = ["None"];
+                                    }
+                                  } else {
+                                    _selectedConditions.remove("None");
+
+                                    if (_selectedConditions.contains(value)) {
+                                      _selectedConditions.remove(value);
+                                    } else {
+                                      _selectedConditions.add(value);
+                                    }
+                                  }
+                                });
+                              },
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 18),
+                      child: GestureDetector(
+                        onTap: _saving ? null : _next,
+                        child: SizedBox(
+                          width: 82,
+                          height: 82,
+                          child: Stack(
+                            alignment: Alignment.center,
+                            children: [
+                              TweenAnimationBuilder<double>(
+                                tween: Tween<double>(
+                                  begin: 0,
+                                  end: _progressValue,
+                                ),
+                                duration: const Duration(milliseconds: 350),
+                                curve: Curves.easeInOut,
+                                builder: (context, value, child) {
+                                  return SizedBox(
+                                    width: 82,
+                                    height: 82,
+                                    child: CircularProgressIndicator(
+                                      value: value,
+                                      strokeWidth: 3.4,
+                                      backgroundColor: AppColors.mediumBlue
+                                          .withOpacity(0.18),
+                                      valueColor:
+                                          const AlwaysStoppedAnimation<Color>(
+                                            AppColors.mediumBlue,
+                                          ),
+                                    ),
+                                  );
+                                },
+                              ),
+                              Container(
+                                width: 58,
+                                height: 58,
+                                decoration: const BoxDecoration(
+                                  shape: BoxShape.circle,
+                                  color: AppColors.deepBlue,
+                                ),
+                                child: _saving
+                                    ? const Padding(
+                                        padding: EdgeInsets.all(16),
+                                        child: CircularProgressIndicator(
+                                          strokeWidth: 2.5,
+                                          valueColor:
+                                              AlwaysStoppedAnimation<Color>(
+                                                Colors.white,
+                                              ),
+                                        ),
+                                      )
+                                    : const Icon(
+                                        Icons.arrow_forward_rounded,
+                                        color: Colors.white,
+                                        size: 26,
+                                      ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
               ),
-            ],
+            ),
           ),
         ),
       ),
@@ -584,9 +622,18 @@ class _StepScaffold extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 10),
-      child: child,
+    return Center(
+      child: ConstrainedBox(
+        constraints: BoxConstraints(
+          maxWidth: kIsWeb && MediaQuery.of(context).size.width >= 900
+              ? 560
+              : double.infinity,
+        ),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 10),
+          child: child,
+        ),
+      ),
     );
   }
 }

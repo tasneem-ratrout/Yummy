@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:frontend/core/theme/app_colors.dart';
 import 'package:http/http.dart' as http;
 import 'package:image_picker/image_picker.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -337,47 +338,39 @@ class _AdminSettingsPageState extends State<AdminSettingsPage> {
 
     return Scaffold(
       backgroundColor: _bg,
-
       body: SafeArea(
         child: SingleChildScrollView(
           physics: const BouncingScrollPhysics(),
-
+          padding: const EdgeInsets.all(16),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
-
             children: [
-              // ── CHANGE EMAIL ─────────────────────
+              const SizedBox(height: 8),
+
+              const SizedBox(height: 16),
+
               _card(
                 icon: Icons.email_rounded,
-
                 title: 'Change Email',
-
                 subtitle: 'Update your account email',
-
                 onTap: () {
                   _showChangeEmailDialog();
                 },
               ),
 
-              // ── CHANGE PASSWORD ─────────────────
               _card(
                 icon: Icons.lock_rounded,
-
                 title: 'Change Password',
-
                 subtitle: 'Update your account password',
-
                 onTap: () {
                   _showChangePasswordDialog();
                 },
               ),
+
               _card(
                 icon: Icons.notifications_rounded,
-
                 title: 'Notification Requests',
-
                 subtitle: 'Manage notification requests',
-
                 onTap: () {
                   Navigator.push(
                     context,
@@ -387,6 +380,7 @@ class _AdminSettingsPageState extends State<AdminSettingsPage> {
                   );
                 },
               ),
+
               const SizedBox(height: 28),
             ],
           ),

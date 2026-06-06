@@ -894,9 +894,26 @@ class _AdminBannersPageState extends State<AdminBannersPage>
 
   Widget _buildBannersList() {
     if (_loading) {
-      return ListView.builder(
-        itemCount: 4,
-        itemBuilder: (_, i) => _buildShimmerBannerCard(i),
+      return LayoutBuilder(
+        builder: (context, constraints) {
+          final isWeb = constraints.maxWidth >= 900;
+          if (isWeb) {
+            return GridView.builder(
+              itemCount: 4,
+              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                crossAxisCount: 2,
+                crossAxisSpacing: 16,
+                mainAxisSpacing: 16,
+                childAspectRatio: 4.2,
+              ),
+              itemBuilder: (_, i) => _buildShimmerBannerCard(i),
+            );
+          }
+          return ListView.builder(
+            itemCount: 4,
+            itemBuilder: (_, i) => _buildShimmerBannerCard(i),
+          );
+        },
       );
     }
 
@@ -955,25 +972,71 @@ class _AdminBannersPageState extends State<AdminBannersPage>
     return AnimatedBuilder(
       animation: _listController,
       builder: (context, child) {
-        return ListView.builder(
-          itemCount: _banners.length,
-          itemBuilder: (_, i) {
-            final startTime = (i * 0.1).clamp(0.0, 0.8);
-            final endTime = (startTime + 0.35).clamp(0.0, 1.0);
-            final anim = CurvedAnimation(
-              parent: _listController,
-              curve: Interval(startTime, endTime, curve: Curves.easeOutCubic),
-            );
+        return LayoutBuilder(
+          builder: (context, constraints) {
+            final isWeb = constraints.maxWidth >= 900;
 
-            return FadeTransition(
-              opacity: anim,
-              child: SlideTransition(
-                position: Tween<Offset>(
-                  begin: const Offset(0, 0.3),
-                  end: Offset.zero,
-                ).animate(anim),
-                child: _buildBannerCard(i),
-              ),
+            if (isWeb) {
+              final crossAxisCount = constraints.maxWidth >= 1200 ? 2 : 1;
+              return GridView.builder(
+                itemCount: _banners.length,
+                gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                  crossAxisCount: crossAxisCount,
+                  crossAxisSpacing: 16,
+                  mainAxisSpacing: 16,
+                  childAspectRatio: 4.3,
+                ),
+                itemBuilder: (_, i) {
+                  final startTime = (i * 0.1).clamp(0.0, 0.8);
+                  final endTime = (startTime + 0.35).clamp(0.0, 1.0);
+                  final anim = CurvedAnimation(
+                    parent: _listController,
+                    curve: Interval(
+                      startTime,
+                      endTime,
+                      curve: Curves.easeOutCubic,
+                    ),
+                  );
+
+                  return FadeTransition(
+                    opacity: anim,
+                    child: SlideTransition(
+                      position: Tween<Offset>(
+                        begin: const Offset(0, 0.3),
+                        end: Offset.zero,
+                      ).animate(anim),
+                      child: _buildBannerCard(i),
+                    ),
+                  );
+                },
+              );
+            }
+
+            return ListView.builder(
+              itemCount: _banners.length,
+              itemBuilder: (_, i) {
+                final startTime = (i * 0.1).clamp(0.0, 0.8);
+                final endTime = (startTime + 0.35).clamp(0.0, 1.0);
+                final anim = CurvedAnimation(
+                  parent: _listController,
+                  curve: Interval(
+                    startTime,
+                    endTime,
+                    curve: Curves.easeOutCubic,
+                  ),
+                );
+
+                return FadeTransition(
+                  opacity: anim,
+                  child: SlideTransition(
+                    position: Tween<Offset>(
+                      begin: const Offset(0, 0.3),
+                      end: Offset.zero,
+                    ).animate(anim),
+                    child: _buildBannerCard(i),
+                  ),
+                );
+              },
             );
           },
         );

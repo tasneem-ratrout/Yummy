@@ -56,9 +56,10 @@ app.use(
   cors({
     origin: function (origin, callback) {
       // Mobile app / Postman sometimes send no origin, so allow them
-      if (!origin || allowedOrigins.includes(origin)) {
-        return callback(null, true);
-      }
+     if (!origin ||allowedOrigins.includes(origin) ||origin.startsWith("http://localhost:"))
+    {
+      return callback(null, true);
+    }
 
       console.log("❌ CORS blocked origin:", origin);
       return callback(new Error(`CORS blocked this origin: ${origin}`));
