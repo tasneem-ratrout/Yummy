@@ -4,6 +4,7 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:frontend/core/services/favorite_service.dart';
+import 'package:geolocator/geolocator.dart';
 import 'package:http/http.dart' as http;
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -65,6 +66,84 @@ String fullImageUrl(dynamic image) {
   return '$base$img';
 }
 
+final Map<String, List<String>> _palestineAreaKeywords = {
+  'القدس': ['القدس', 'jerusalem', 'al quds'],
+  'رام الله': ['رام الله', 'ramallah', 'ram allah', 'البيرة', 'al bireh'],
+  'نابلس': ['نابلس', 'nablus'],
+  'الخليل': ['الخليل', 'hebron'],
+  'بيت لحم': ['بيت لحم', 'bethlehem'],
+  'جنين': ['جنين', 'jenin'],
+  'طولكرم': ['طولكرم', 'tulkarm', 'tulkarem'],
+  'قلقيلية': ['قلقيلية', 'qalqilya', 'qalqilia'],
+  'سلفيت': ['سلفيت', 'salfit'],
+  'أريحا': ['أريحا', 'اريحا', 'jericho'],
+  'طوباس': ['طوباس', 'tubas'],
+  'غزة': ['غزة', 'gaza'],
+};
+
+final Map<String, ({double lat, double lng})> _palestineAreaCenters = {
+  'القدس': (lat: 31.7683, lng: 35.2137),
+  'رام الله': (lat: 31.9038, lng: 35.2034),
+  'نابلس': (lat: 32.2211, lng: 35.2544),
+  'الخليل': (lat: 31.5326, lng: 35.0998),
+  'بيت لحم': (lat: 31.7054, lng: 35.2024),
+  'جنين': (lat: 32.4594, lng: 35.3009),
+  'طولكرم': (lat: 32.3104, lng: 35.0286),
+  'قلقيلية': (lat: 32.1960, lng: 34.9819),
+  'سلفيت': (lat: 32.0837, lng: 35.1808),
+  'أريحا': (lat: 31.8560, lng: 35.4599),
+  'طوباس': (lat: 32.3209, lng: 35.3699),
+  'غزة': (lat: 31.5017, lng: 34.4668),
+};
+
+String _normalizeLocationText(String value) {
+  return value
+      .toLowerCase()
+      .replaceAll('أ', 'ا')
+      .replaceAll('إ', 'ا')
+      .replaceAll('آ', 'ا')
+      .replaceAll('ة', 'ه')
+      .replaceAll('ى', 'ي')
+      .replaceAll(RegExp(r'[,،\-_/]+'), ' ')
+      .replaceAll(RegExp(r'\s+'), ' ')
+      .trim();
+}
+
+String _areaFromText(String value) {
+  final normalized = _normalizeLocationText(value);
+
+  for (final entry in _palestineAreaKeywords.entries) {
+    final matched = entry.value.any((keyword) {
+      return normalized.contains(_normalizeLocationText(keyword));
+    });
+
+    if (matched) return entry.key;
+  }
+
+  return value.trim();
+}
+
+String _nearestAreaFromCoordinates(double latitude, double longitude) {
+  String closestArea = 'رام الله';
+  double closestDistance = double.infinity;
+
+  for (final entry in _palestineAreaCenters.entries) {
+    final distance = Geolocator.distanceBetween(
+      latitude,
+      longitude,
+      entry.value.lat,
+      entry.value.lng,
+    );
+
+    if (distance < closestDistance) {
+      closestDistance = distance;
+      closestArea = entry.key;
+    }
+  }
+
+  return closestArea;
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // HomeCooksScreen
 // ─────────────────────────────────────────────────────────────────────────────
@@ -95,7 +174,12 @@ class _HomeCooksScreenState extends State<HomeCooksScreen>
 
   // ── Search ──────────────────────────────────────────────────────────────────
   final TextEditingController _searchController = TextEditingController();
+  final TextEditingController _locationController = TextEditingController();
   String _searchQuery = '';
+  final List<String> _selectedUserLocations = [];
+  bool _isGettingGpsLocation = false;
+
+  String get _selectedUserLocation => _selectedUserLocations.join(', ');
 
   // ── Favourites / Following ───────────────────────────────────────────────────
   int _selectedCategory = 0;
@@ -160,6 +244,7 @@ class _HomeCooksScreenState extends State<HomeCooksScreen>
     )..forward();
 
     _loadUser();
+    _loadSavedUserLocation();
     _loadChefs();
     _loadBanners();
     _loadTrendingRecipes();
@@ -170,6 +255,8 @@ class _HomeCooksScreenState extends State<HomeCooksScreen>
   @override
   void dispose() {
     _bannerTimer?.cancel();
+    _searchController.dispose();
+    _locationController.dispose();
     _bannerCtrl.dispose();
     _headerAnim.dispose();
     _contentAnim.dispose();
@@ -186,6 +273,166 @@ class _HomeCooksScreenState extends State<HomeCooksScreen>
       _userAvatar = p.getString('userAvatar') ?? '';
       _loading = false;
     });
+  }
+
+  Future<void> _loadSavedUserLocation() async {
+    final prefs = await SharedPreferences.getInstance();
+    final savedLocations = prefs.getStringList('userSelectedLocations') ?? [];
+    final oldSavedLocation = prefs.getString('userSelectedLocation') ?? '';
+
+    final cleanedLocations = <String>{
+      ...savedLocations.map(_areaFromText).where((e) => e.trim().isNotEmpty),
+      if (oldSavedLocation.trim().isNotEmpty) _areaFromText(oldSavedLocation),
+    }.toList();
+
+    if (!mounted || cleanedLocations.isEmpty) return;
+
+    setState(() {
+      _selectedUserLocations
+        ..clear()
+        ..addAll(cleanedLocations);
+    });
+  }
+
+  Future<void> _saveUserLocations() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setStringList('userSelectedLocations', _selectedUserLocations);
+    await prefs.setString('userSelectedLocation', _selectedUserLocation);
+  }
+
+  void _applyLocationFilter(String location) {
+    final cleanedLocation = _areaFromText(location).trim();
+
+    if (cleanedLocation.isEmpty) return;
+
+    if (cleanedLocation == 'All') {
+      _clearLocationFilter();
+      return;
+    }
+
+    final alreadyExists = _selectedUserLocations.any((item) {
+      return _normalizeLocationText(item) ==
+          _normalizeLocationText(cleanedLocation);
+    });
+
+    if (!alreadyExists) {
+      _selectedUserLocations.add(cleanedLocation);
+    }
+
+    _locationController.clear();
+    _applySelectedLocationFilters();
+  }
+
+  void _removeLocationFilter(String location) {
+    _selectedUserLocations.removeWhere((item) {
+      return _normalizeLocationText(item) == _normalizeLocationText(location);
+    });
+
+    _applySelectedLocationFilters();
+  }
+
+  void _applySelectedLocationFilters() {
+    final normalizedUserLocations = _selectedUserLocations
+        .map(_normalizeLocationText)
+        .where((item) => item.isNotEmpty)
+        .toList();
+
+    final filtered = normalizedUserLocations.isEmpty
+        ? _chefs
+        : _chefs.where((chef) {
+            final rawLocation = (chef['location'] ?? '').toString();
+            final chefLocation = _areaFromText(rawLocation);
+            final normalizedChefLocation = _normalizeLocationText(chefLocation);
+            final normalizedRawLocation = _normalizeLocationText(rawLocation);
+
+            return normalizedUserLocations.any((userLocation) {
+              return normalizedChefLocation.contains(userLocation) ||
+                  normalizedRawLocation.contains(userLocation) ||
+                  userLocation.contains(normalizedChefLocation);
+            });
+          }).toList();
+
+    if (!mounted) return;
+    setState(() {
+      _filteredChefs = filtered;
+    });
+
+    _saveUserLocations();
+  }
+
+  void _clearLocationFilter() {
+    if (!mounted) return;
+    setState(() {
+      _selectedUserLocations.clear();
+      _locationController.clear();
+      _filteredChefs = _chefs;
+    });
+    _saveUserLocations();
+  }
+
+  Future<void> _useGpsLocation() async {
+    if (!mounted) return;
+
+    setState(() => _isGettingGpsLocation = true);
+
+    try {
+      bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
+
+      if (!serviceEnabled) {
+        _showLocationMessage('Location service is off. Please turn on GPS.');
+        await Geolocator.openLocationSettings();
+        return;
+      }
+
+      LocationPermission permission = await Geolocator.checkPermission();
+
+      if (permission == LocationPermission.denied) {
+        permission = await Geolocator.requestPermission();
+      }
+
+      if (permission == LocationPermission.denied) {
+        _showLocationMessage('Location permission denied. Please allow it.');
+        return;
+      }
+
+      if (permission == LocationPermission.deniedForever) {
+        _showLocationMessage('Location permission blocked. Open settings.');
+        await Geolocator.openAppSettings();
+        return;
+      }
+
+      final position = await Geolocator.getCurrentPosition(
+        locationSettings: const LocationSettings(
+          accuracy: LocationAccuracy.high,
+          timeLimit: Duration(seconds: 15),
+        ),
+      );
+
+      debugPrint('GPS LAT: ${position.latitude}');
+      debugPrint('GPS LNG: ${position.longitude}');
+
+      final nearestArea = _nearestAreaFromCoordinates(
+        position.latitude,
+        position.longitude,
+      );
+
+      _applyLocationFilter(nearestArea);
+      _showLocationMessage('Showing stores near $nearestArea');
+    } catch (e) {
+      debugPrint('GPS ERROR DETAILS: $e');
+      _showLocationMessage('GPS failed. Please type your area instead.');
+    } finally {
+      if (mounted) {
+        setState(() => _isGettingGpsLocation = false);
+      }
+    }
+  }
+
+  void _showLocationMessage(String message) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(message)));
   }
 
   Future<void> _loadFavorites() async {
@@ -248,23 +495,29 @@ class _HomeCooksScreenState extends State<HomeCooksScreen>
             _filteredChefs = list;
             _loadingChefs = false;
           });
+
+          if (_selectedUserLocations.isNotEmpty) {
+            _applySelectedLocationFilters();
+          }
         }
       } else {
-        if (mounted)
+        if (mounted) {
           setState(() {
             _chefs = [];
             _filteredChefs = [];
             _loadingChefs = false;
           });
+        }
       }
     } catch (e) {
       debugPrint('❌ Error loading chefs: $e');
-      if (mounted)
+      if (mounted) {
         setState(() {
           _chefs = [];
           _filteredChefs = [];
           _loadingChefs = false;
         });
+      }
     }
   }
 
@@ -727,8 +980,10 @@ class _HomeCooksScreenState extends State<HomeCooksScreen>
   PreferredSizeWidget _buildAppBar() {
     return AppBar(
       backgroundColor: Colors.white,
+      titleSpacing: 10,
       title: SizedBox(height: 42, child: _buildSearchBar()),
       actions: [
+        _buildLocationSideButton(),
         _buildFavouriteButton(),
         IconButton(
           icon: const Icon(Icons.shopping_cart_outlined, color: _kNavy),
@@ -786,6 +1041,372 @@ class _HomeCooksScreenState extends State<HomeCooksScreen>
                 ),
               ),
           ],
+        );
+      },
+    );
+  }
+
+  Widget _buildLocationSideButton() {
+    final count = _selectedUserLocations.length;
+
+    return Stack(
+      clipBehavior: Clip.none,
+      children: [
+        IconButton(
+          tooltip: count == 0 ? 'Choose locations' : _selectedUserLocation,
+          icon: const Icon(Icons.location_on_rounded, color: _kNavy),
+          onPressed: _openLocationSheet,
+        ),
+        if (count > 0)
+          Positioned(
+            right: 5,
+            top: 6,
+            child: Container(
+              padding: const EdgeInsets.all(3),
+              constraints: const BoxConstraints(minWidth: 16, minHeight: 16),
+              decoration: const BoxDecoration(
+                color: _kBlue,
+                shape: BoxShape.circle,
+              ),
+              child: Text(
+                '$count',
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 9,
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+            ),
+          ),
+      ],
+    );
+  }
+
+  void _openLocationSheet() {
+    _locationController.clear();
+
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (sheetContext) {
+        return StatefulBuilder(
+          builder: (context, setSheetState) {
+            void refreshSheet() {
+              if (mounted) setState(() {});
+              setSheetState(() {});
+            }
+
+            void addTypedLocation() {
+              final value = _locationController.text.trim();
+              if (value.isEmpty) return;
+              _applyLocationFilter(value);
+              refreshSheet();
+            }
+
+            return Container(
+              decoration: const BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.vertical(top: Radius.circular(26)),
+              ),
+              child: SafeArea(
+                top: false,
+                child: Padding(
+                  padding: EdgeInsets.only(
+                    left: 18,
+                    right: 18,
+                    top: 12,
+                    bottom: MediaQuery.of(sheetContext).viewInsets.bottom + 18,
+                  ),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Center(
+                        child: Container(
+                          width: 44,
+                          height: 4,
+                          decoration: BoxDecoration(
+                            color: _kOutline.withOpacity(0.7),
+                            borderRadius: BorderRadius.circular(999),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      Row(
+                        children: [
+                          Container(
+                            width: 42,
+                            height: 42,
+                            decoration: BoxDecoration(
+                              color: _kBluePale,
+                              borderRadius: BorderRadius.circular(14),
+                            ),
+                            child: const Icon(
+                              Icons.location_on_rounded,
+                              color: _kBlue,
+                              size: 23,
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          const Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  'Choose your locations',
+                                  style: TextStyle(
+                                    color: _kText,
+                                    fontSize: 18,
+                                    fontWeight: FontWeight.w900,
+                                  ),
+                                ),
+                                SizedBox(height: 3),
+                                Text(
+                                  'Add one or more areas to find nearby stores',
+                                  style: TextStyle(
+                                    color: _kTextDim,
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          IconButton(
+                            onPressed: () => Navigator.pop(sheetContext),
+                            icon: const Icon(
+                              Icons.close_rounded,
+                              color: _kNavy,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 16),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: TextField(
+                              controller: _locationController,
+                              textInputAction: TextInputAction.done,
+                              onSubmitted: (_) => addTypedLocation(),
+                              decoration: InputDecoration(
+                                hintText: 'Example: رام الله، نابلس، الخليل',
+                                prefixIcon: const Icon(
+                                  Icons.search_rounded,
+                                  color: _kBlue,
+                                ),
+                                filled: true,
+                                fillColor: const Color(0xFFF7FAFE),
+                                contentPadding: const EdgeInsets.symmetric(
+                                  horizontal: 12,
+                                  vertical: 12,
+                                ),
+                                border: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(16),
+                                  borderSide: BorderSide(
+                                    color: _kOutline.withOpacity(0.4),
+                                  ),
+                                ),
+                                enabledBorder: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(16),
+                                  borderSide: BorderSide(
+                                    color: _kOutline.withOpacity(0.4),
+                                  ),
+                                ),
+                                focusedBorder: const OutlineInputBorder(
+                                  borderRadius: BorderRadius.all(
+                                    Radius.circular(16),
+                                  ),
+                                  borderSide: BorderSide(
+                                    color: _kBlue,
+                                    width: 1.4,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          SizedBox(
+                            height: 50,
+                            child: ElevatedButton(
+                              onPressed: addTypedLocation,
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: _kBlue,
+                                elevation: 0,
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(16),
+                                ),
+                              ),
+                              child: const Text(
+                                'Add',
+                                style: TextStyle(
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.w900,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 12),
+                      SizedBox(
+                        width: double.infinity,
+                        height: 46,
+                        child: OutlinedButton.icon(
+                          onPressed: _isGettingGpsLocation
+                              ? null
+                              : () async {
+                                  await _useGpsLocation();
+                                  refreshSheet();
+                                },
+                          style: OutlinedButton.styleFrom(
+                            side: BorderSide(
+                              color: _kOutline.withOpacity(0.55),
+                            ),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(16),
+                            ),
+                          ),
+                          icon: _isGettingGpsLocation
+                              ? const SizedBox(
+                                  width: 16,
+                                  height: 16,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                  ),
+                                )
+                              : const Icon(
+                                  Icons.my_location_rounded,
+                                  color: _kBlue,
+                                ),
+                          label: const Text(
+                            'Use GPS location',
+                            style: TextStyle(
+                              color: _kNavy,
+                              fontWeight: FontWeight.w900,
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 14),
+                      if (_selectedUserLocations.isNotEmpty) ...[
+                        Row(
+                          children: [
+                            const Expanded(
+                              child: Text(
+                                'Selected areas',
+                                style: TextStyle(
+                                  color: _kText,
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w900,
+                                ),
+                              ),
+                            ),
+                            TextButton(
+                              onPressed: () {
+                                _clearLocationFilter();
+                                refreshSheet();
+                              },
+                              child: const Text(
+                                'Clear all',
+                                style: TextStyle(
+                                  color: _kError,
+                                  fontWeight: FontWeight.w800,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                        Wrap(
+                          spacing: 8,
+                          runSpacing: 8,
+                          children: _selectedUserLocations.map((area) {
+                            return InputChip(
+                              label: Text(area),
+                              avatar: const Icon(
+                                Icons.location_on_rounded,
+                                size: 16,
+                                color: _kBlue,
+                              ),
+                              onDeleted: () {
+                                _removeLocationFilter(area);
+                                refreshSheet();
+                              },
+                              backgroundColor: _kBluePale.withOpacity(0.65),
+                              labelStyle: const TextStyle(
+                                color: _kNavy,
+                                fontWeight: FontWeight.w800,
+                              ),
+                              deleteIconColor: _kError,
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(999),
+                                side: BorderSide(
+                                  color: _kOutline.withOpacity(0.25),
+                                ),
+                              ),
+                            );
+                          }).toList(),
+                        ),
+                        const SizedBox(height: 14),
+                      ],
+                      const Text(
+                        'Quick areas',
+                        style: TextStyle(
+                          color: _kText,
+                          fontSize: 14,
+                          fontWeight: FontWeight.w900,
+                        ),
+                      ),
+                      const SizedBox(height: 10),
+                      Wrap(
+                        spacing: 8,
+                        runSpacing: 8,
+                        children: _palestineAreaKeywords.keys.map((area) {
+                          final selected = _selectedUserLocations.any((item) {
+                            return _normalizeLocationText(item) ==
+                                _normalizeLocationText(area);
+                          });
+
+                          return GestureDetector(
+                            onTap: () {
+                              if (selected) {
+                                _removeLocationFilter(area);
+                              } else {
+                                _applyLocationFilter(area);
+                              }
+                              refreshSheet();
+                            },
+                            child: AnimatedContainer(
+                              duration: const Duration(milliseconds: 180),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 12,
+                                vertical: 8,
+                              ),
+                              decoration: BoxDecoration(
+                                color: selected ? _kBlue : _kBluePale,
+                                borderRadius: BorderRadius.circular(999),
+                              ),
+                              child: Text(
+                                area,
+                                style: TextStyle(
+                                  color: selected ? Colors.white : _kBlue,
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w900,
+                                ),
+                              ),
+                            ),
+                          );
+                        }).toList(),
+                      ),
+                      const SizedBox(height: 12),
+                    ],
+                  ),
+                ),
+              ),
+            );
+          },
         );
       },
     );
@@ -896,6 +1517,201 @@ class _HomeCooksScreenState extends State<HomeCooksScreen>
             ),
           ],
         ],
+      ),
+    );
+  }
+
+  // ── User Location Filter ─────────────────────────────────────────────────────
+
+  Widget _buildLocationSelector() {
+    final hasLocation = _selectedUserLocation.trim().isNotEmpty;
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 20),
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(22),
+          border: Border.all(color: _kOutline.withOpacity(0.45)),
+          boxShadow: [
+            BoxShadow(
+              color: _kNavy.withOpacity(0.05),
+              blurRadius: 16,
+              offset: const Offset(0, 5),
+            ),
+          ],
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Container(
+                  width: 42,
+                  height: 42,
+                  decoration: BoxDecoration(
+                    color: _kBluePale,
+                    borderRadius: BorderRadius.circular(15),
+                  ),
+                  child: const Icon(
+                    Icons.location_on_rounded,
+                    color: _kBlue,
+                    size: 24,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'Find stores near you',
+                        style: TextStyle(
+                          color: _kText,
+                          fontSize: 17,
+                          fontWeight: FontWeight.w900,
+                        ),
+                      ),
+                      const SizedBox(height: 3),
+                      Text(
+                        hasLocation
+                            ? 'Showing stores in $_selectedUserLocation'
+                            : 'Type your area or use GPS',
+                        style: const TextStyle(
+                          color: _kTextDim,
+                          fontSize: 12.5,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                if (hasLocation)
+                  TextButton(
+                    onPressed: _clearLocationFilter,
+                    child: const Text(
+                      'Clear',
+                      style: TextStyle(
+                        color: _kError,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+            const SizedBox(height: 14),
+            Row(
+              children: [
+                Expanded(
+                  child: TextField(
+                    controller: _locationController,
+                    textInputAction: TextInputAction.search,
+                    onSubmitted: _applyLocationFilter,
+                    decoration: InputDecoration(
+                      hintText: 'Example: رام الله، نابلس، الخليل',
+                      prefixIcon: const Icon(
+                        Icons.search_rounded,
+                        color: _kBlue,
+                      ),
+                      filled: true,
+                      fillColor: const Color(0xFFF7FAFE),
+                      contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 12,
+                      ),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(16),
+                        borderSide: BorderSide(
+                          color: _kOutline.withOpacity(0.4),
+                        ),
+                      ),
+                      enabledBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(16),
+                        borderSide: BorderSide(
+                          color: _kOutline.withOpacity(0.4),
+                        ),
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(16),
+                        borderSide: const BorderSide(color: _kBlue, width: 1.4),
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 10),
+                SizedBox(
+                  height: 50,
+                  child: ElevatedButton.icon(
+                    onPressed: _isGettingGpsLocation ? null : _useGpsLocation,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: _kNavy,
+                      disabledBackgroundColor: _kNavy.withOpacity(0.55),
+                      elevation: 0,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                    ),
+                    icon: _isGettingGpsLocation
+                        ? const SizedBox(
+                            width: 16,
+                            height: 16,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: Colors.white,
+                            ),
+                          )
+                        : const Icon(
+                            Icons.my_location_rounded,
+                            color: Colors.white,
+                            size: 18,
+                          ),
+                    label: const Text(
+                      'GPS',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 10),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: _palestineAreaKeywords.keys.take(8).map((area) {
+                final selected =
+                    _normalizeLocationText(area) ==
+                    _normalizeLocationText(_selectedUserLocation);
+
+                return GestureDetector(
+                  onTap: () => _applyLocationFilter(area),
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 180),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 7,
+                    ),
+                    decoration: BoxDecoration(
+                      color: selected ? _kBlue : _kBluePale,
+                      borderRadius: BorderRadius.circular(999),
+                    ),
+                    child: Text(
+                      area,
+                      style: TextStyle(
+                        color: selected ? Colors.white : _kBlue,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                  ),
+                );
+              }).toList(),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -1511,7 +2327,10 @@ class _HomeCooksScreenState extends State<HomeCooksScreen>
       return const Padding(
         padding: EdgeInsets.all(24),
         child: Center(
-          child: Text('No chefs found 🔍', style: TextStyle(color: _kTextDim)),
+          child: Text(
+            'No chefs found near this area 🔍',
+            style: TextStyle(color: _kTextDim),
+          ),
         ),
       );
     }
